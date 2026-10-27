@@ -3,10 +3,9 @@ Análisis forense de detección de amenazas basado en el ciclo de vida del adver
 # 🟢 INFORME SOC: DETECCIÓN DE AMENAZAS EN WINDOWS
 ## 🔵 Análisis Forense basado en el Ciclo de Vida del Adversario (Cyber Kill Chain)
 
-**ANALISTA RESPONSABLE:** Sebastián Navarro M.
-**ENTORNO EVALUADO:** TryHackMe - Windows Threat Detection 3
-**ARTEFACTOS ANALIZADOS:** `Sysmon.evtx` & `Security.evtx`
-
+* **ANALISTA RESPONSABLE:** Sebastián Navarro M.
+* **ENTORNO EVALUADO:** TryHackMe - Windows Threat Detection 3
+* **ARTEFACTOS ANALIZADOS:** `Sysmon.evtx` & `Security.evtx`
 ---
 
 ### 🟢 1. Introducción y Contexto del Laboratorio
