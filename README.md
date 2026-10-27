@@ -5,7 +5,7 @@ Análisis forense de detección de amenazas basado en el ciclo de vida del adver
 
 * **ANALISTA RESPONSABLE:** Sebastián Navarro M.
 * **ENTORNO EVALUADO:** TryHackMe - Windows Threat Detection 3
-* **ARTEFACTOS ANALIZADOS:** `Sysmon.evtx` & `Security.evtx`
+* **REGISTROS ANALIZADOS:** `Sysmon.evtx` & `Security.evtx`
 ---
 
 ### 🟢 1. Introducción y Contexto del Laboratorio
