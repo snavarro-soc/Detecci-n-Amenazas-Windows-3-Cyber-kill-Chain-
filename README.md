@@ -9,14 +9,18 @@
 - **REGISTROS ANALIZADOS:** `Sysmon.evtx` & `Security.evtx`
 ---
 
-### 🟢 1. Introducción y Contexto del Laboratorio
+### 🟢 Introducción y Contexto del Laboratorio
 Como analista SOC, desarrollé este informe basándome en el entorno práctico del módulo **Windows Threat Detection 3 de TryHackMe**. El objetivo de este caso de estudio es demostrar la capacidad de analizar un incidente cibernético completo. En lugar de reportar eventos aislados, correlacioné cada hallazgo técnico con las fases de la **Cyber Kill Chain**, documentando paso a paso cómo el atacante logró entrar, qué herramientas descargó y cómo aseguró su control sobre la máquina.
 
-### 🟢 2. Fase 1 y 2: Acceso Inicial y Entrega de Carga Útil (Initial Access & Delivery)
-En esta fase inicial, investigué cómo el atacante logró romper el perímetro y qué hizo inmediatamente después de obtener acceso al sistema.
+### 🟢 1. Fase 1: Acceso Inicial (Initial Access)
+En esta fase, investigué cómo el atacante logró romper el perímetro de autenticación del servidor.
 
-- 🔵 **Intrusión por Fuerza Bruta (Acceso Inicial):** Al analizar los registros de auditoría en `Security.evtx` y filtrar por el **`Event ID 4625`** (Logon Failure), detecté una ráfaga masiva de intentos de autenticación fallidos contra la cuenta `Administrator`. El atacante continuó este ataque de diccionario hasta lograr adivinar la credencial, consolidando su acceso interactivo por Escritorio Remoto (comprobable mediante el **`Event ID 4624`**, Tipo de inicio de sesión 10).
-- 🔵 **Entrega del Payload (Delivery):** Una vez que el atacante estuvo dentro del sistema a través de RDP, procedió a descargar sus herramientas. Utilizando la telemetría de `Sysmon.evtx` y filtrando por el **`Event ID 11`** (File Created), identifiqué la creación del archivo `urgent_.zip` en la ruta `C:\Users\Administrator\Downloads\URGENT!\URGENT!`.
+- 🔵 **Intrusión por Fuerza Bruta:** Al analizar los registros de auditoría en `Security.evtx` y filtrar por el **`Event ID 4625`** (Logon Failure), detecté una ráfaga masiva de intentos de autenticación fallidos contra la cuenta `Administrator`. El atacante continuó este ataque de diccionario hasta lograr adivinar la credencial, consolidando su acceso interactivo por Escritorio Remoto (comprobable mediante el **`Event ID 4624`**, Tipo de inicio de sesión 10).
+
+### 🟢 2. Fase 2: Entrega de Carga Útil (Delivery)
+Una vez que el atacante estuvo dentro del sistema a través de RDP, procedió a descargar sus herramientas para operar dentro de la máquina.
+
+- 🔵 **Entrega del Payload:** Utilizando la telemetría de `Sysmon.evtx` y filtrando por el **`Event ID 11`** (File Created), identifiqué la creación del archivo `urgent_.zip` en la ruta `C:\Users\Administrator\Downloads\URGENT!\URGENT!`.
 
 > **Contexto Forense:** El análisis del Alternate Data Stream `Zone.Identifier` en el archivo `.zip` confirmó que este provino de una descarga directa de Internet, materializando la entrega efectiva del código malicioso en el equipo comprometido.
 
