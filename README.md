@@ -184,7 +184,19 @@ Para facilitar las tareas de monitoreo, bloqueo y cacería de amenazas (Threat H
 
 
 
+## 🔵 Fase 6: Resumen de Indicadores de Compromiso (IoCs)
 
+Tabla de referencias cruzadas con los artefactos técnicos y registros auditados a lo largo del caso:
+
+| Fase Kill Chain | Artefacto / Indicador Técnico (IoC) | Origen y Event ID |
+| :--- | :--- | :--- |
+| **Initial Access** | Ráfaga de fuerza bruta y acceso RDP exitoso (Tipo 10) a <font color="#00FF66"><b>Administrator</b></font> | Security.evtx 🔵 ID <font color="#00FF66"><b>4625 / 4624</b></font> |
+| **Persistence** | Creación cuenta <font color="#00FF66"><b>support</b></font> y asignación a <font color="#00FF66"><b>Administrators</b></font> | Security.evtx 🔵 ID <font color="#00FF66"><b>4720 / 4732</b></font> |
+| **Delivery** | Creación de archivo con rastros de descarga ( <font color="#00FF66"><b>Urgent.inc.doc.Zone.Identifier</b></font> ) | Sysmon 🔵 ID <font color="#00FF66"><b>11</b></font> |
+| **Persistence** | Servicio falso <font color="#00FF66"><b>Data Protection Service</b></font> apuntando a <font color="#00FF66"><b>nessus.exe</b></font> | Security.evtx 🔵 ID <font color="#00FF66"><b>4697</b></font> |
+| **Persistence** | Tarea programada maliciosa camuflada como <font color="#00FF66"><b>Amazon Sync</b></font> ( <font color="#00FF66"><b>troy.exe</b></font> ) | Security.evtx 🔵 ID <font color="#00FF66"><b>4698</b></font> |
+| **Execution** | Proceso hijo malicioso lanzado desde el servicio padre ( <font color="#00FF66"><b>services.exe</b></font> ) | Sysmon 🔵 ID <font color="#00FF66"><b>1</b></font> |
+| **C2 / Exfil** | Consultas DNS salientes hacia el dominio/IP del atacante | Sysmon 🔵 ID <font color="#00FF66"><b>22</b></font> |
 
 
 
