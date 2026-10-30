@@ -32,16 +32,6 @@ Lo primero que hice fue realizar el filtro por el **`Event ID 4625`**, el cual c
 
 Esta ráfaga constante y la frecuencia rápida de estos eventos me confirmaron que se trataba de una herramienta automatizada ejecutando un ataque de diccionario, teniendo como blanco principal la cuenta **`Administrator`** 
 
-Ahora, para verificar si el ataque tuvo éxito y el atacante logró ingresar, cambié el filtro al **`Event ID 4624`** (inicio de sesión exitoso). Busqué específicamente el **`Logon Type 10`**, que señala conexiones remotas por RDP. Aquí confirmé que la intrusión se consolidó con un acceso exitoso para la cuenta **`Administrator`** el **20 de mayo de 2025** a las **09:51:48**.
-
-
-
-En esta primera fase investigué cómo el atacante logró romper el perímetro de autenticación del servidor. Al revisar los registros de auditoría en <font color="#00FF66"><b>Security.evtx</b></font> (telemetría de **Windows Threat Detection 1**), mi primer razonamiento fue buscar signos de un intento de intrusión por la fuerza. Para corroborar esta hipótesis, filtré por el <font color="#00FF66"><b>Event ID 4625</b></font> (inicio de sesión fallido).
-
-El resultado reveló una ráfaga masiva y constante de autenticaciones fallidas dirigidas contra la cuenta <font color="#00FF66"><b>Administrator</b></font>. La frecuencia de estos eventos (registrados segundo a segundo) confirmó de inmediato el uso de una herramienta automatizada ejecutando un ataque de diccionario.
-
-Sabiendo que un atacante no se detiene en los intentos fallidos, la duda lógica que surgió fue: *¿logró adivinar la credencial?* Para responder a esto, cambié el filtro al <font color="#00FF66"><b>Event ID 4624</b></font> (inicio de sesión exitoso). Al analizar los eventos posteriores a la ráfaga, confirmé que el **20 de mayo de 2025** a las **09:51:48** se consolidó la intrusión con un acceso exitoso a la cuenta <font color="#00FF66"><b>Administrator</b></font>. Al inspeccionar el detalle técnico, identifiqué un <font color="#00FF66"><b>Logon Type 10</b></font>, lo que demostró que el acceso se realizó de forma interactiva y remota a través de **RDP**. En la sección *Network Information* (campos *Source Network Address* y *Workstation Name*), registré la dirección IP y el nombre del equipo utilizado por el atacante para penetrar el sistema.
-
 ### Lista de Hallazgos
 * **Objetivo:** Identificar el vector de entrada y confirmar el compromiso del servidor.
 * **Fuente de datos:** <font color="#00FF66"><b>Security.evtx</b></font> (Windows Threat Detection 1).
