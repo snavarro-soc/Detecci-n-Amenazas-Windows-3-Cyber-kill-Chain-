@@ -1,61 +1,13 @@
 # Detección de Amenazas en Windows 3: Cyber Kill Chain
 **Análisis forense basado en el ciclo de vida del adversario.** Investigación respaldada en los laboratorios prácticos del módulo **Windows Threat Detection 3** de **TryHackMe**, evaluando la telemetría de `Sysmon.evtx` y `Security.evtx` para reconstruir la línea de tiempo de un ataque real.
 
-# 🟢 INFORME SOC: DETECCIÓN DE AMENAZAS EN WINDOWS
-## 🔵 Análisis Forense basado en el Ciclo de Vida del Adversario (Cyber Kill Chain)
-
-- **ANALISTA RESPONSABLE:** Sebastián Navarro M.
-- **ENTORNO EVALUADO:** TryHackMe - Windows Threat Detection 3
-- **REGISTROS ANALIZADOS:** `Sysmon.evtx` & `Security.evtx`
----
-
-### 🟢 Introducción y Contexto del Laboratorio
-Como analista SOC, desarrollé este informe basándome en el entorno práctico del módulo **Windows Threat Detection 3 de TryHackMe**. El objetivo de este caso de estudio es demostrar la capacidad de analizar un incidente cibernético completo. En lugar de reportar eventos aislados, correlacioné cada hallazgo técnico con las fases de la **Cyber Kill Chain**, documentando paso a paso cómo el atacante logró entrar, qué herramientas descargó y cómo aseguró su control sobre la máquina.
-
-### 🟢 1. Fase 1: Acceso Inicial (Initial Access)
-En esta fase, investigué cómo el atacante logró romper el perímetro de autenticación del servidor.
-
-- 🔵 **Intrusión por Fuerza Bruta:** Al analizar los registros de auditoría en `Security.evtx` y filtrar por el **`Event ID 4625`** (Logon Failure), detecté una ráfaga masiva de intentos de autenticación fallidos contra la cuenta `Administrator`. El atacante continuó este ataque de diccionario hasta lograr adivinar la credencial, consolidando su acceso interactivo por Escritorio Remoto (comprobable mediante el **`Event ID 4624`**, Tipo de inicio de sesión 10).
-
-### 🟢 2. Fase 2: Entrega de Carga Útil (Delivery)
-Una vez que el atacante estuvo dentro del sistema a través de RDP, procedió a descargar sus herramientas para operar dentro de la máquina.
-
-- 🔵 **Entrega del Payload:** Utilizando la telemetría de `Sysmon.evtx` y filtrando por el **`Event ID 11`** (File Created), identifiqué la creación del archivo `urgent_.zip` en la ruta `C:\Users\Administrator\Downloads\URGENT!\URGENT!`.
-
-> **Contexto Forense:** El análisis del Alternate Data Stream `Zone.Identifier` en el archivo `.zip` confirmó que este provino de una descarga directa de Internet, materializando la entrega efectiva del código malicioso en el equipo comprometido.
-
-### 🟢 3. Fase 3: Persistencia y Escalada de Privilegios (Persistence & Privilege Escalation)
-Sabiendo que la contraseña comprometida del administrador podía ser cambiada por el equipo de TI y perderían el acceso, el atacante ejecutó acciones tácticas para asegurar una puerta trasera permanente.
-
-- 🔵 **Creación de Cuenta Trampa:** Revisando `Security.evtx` mediante el **`Event ID 4720`**, detecté la creación manual de un usuario local llamado `support`. 
-- 🔵 **Escalada de Privilegios:** Inmediatamente después de crear la cuenta, el registro arrojó el **`Event ID 4732`** (Security-enabled local group modification). Esto demostró que el atacante agregó manualmente al usuario `support` al grupo `Administrators`, garantizándole permisos de nivel de sistema y acceso RDP sin depender de la cuenta original.
-
-### 🟢 4. Fase 4: Persistencia Avanzada (Installation & Persistence)
-Para asegurar que el malware se ejecutara de forma automática y silenciosa en cada reinicio del servidor sin intervención humana, el atacante utilizó dos métodos de evasión:
-
-- 🔵 **Abuso de Servicios del Sistema:** El atacante utilizó `sc.exe` para registrar un servicio malicioso. Al revisar el **`Event ID 4697`**, evidencié que el binario `C:\malware.exe` fue instalado camuflándose bajo el nombre legítimo de `Data Protection Service`.
-- 🔵 **Tareas Programadas Engañosas:** También se programó la ejecución del malware `troy.exe`. Analizando el contenido XML de la tarea en el **`Event ID 4698`**, detecté que el binario ubicado en `C:\Program Files\Common Files\troy.exe` se registró utilizando el nombre engañoso `\AmazonSync`.
-
-> **Correlación de Procesos:** En los registros de creación de procesos comprobé que el gestor legítimo `services.exe` fue manipulado para ejecutar `svchost.exe` con los parámetros `-k netsvcs -ps Schedule`, lanzando el malware silenciosamente durante el proceso de arranque.
-
-### 🟢 5. Fase 5: Comando y Control (Command and Control)
-El objetivo final de toda esta persistencia era mantener comunicación constante con la infraestructura del atacante (Servidor C2).
-
-- 🔵 **Conexión C2:** A partir del payload secundario `update.exe`, el malware estableció la baliza de comunicación. Utilizando `Sysmon.evtx` y filtrando por el **`Event ID 22`** (DNSEvent), detecté las resoluciones y consultas DNS dirigidas al dominio malicioso `route.m365officesync.workers.dev`.
-- 🔵 **Validación Forense:** Al probar el comportamiento de `troy.exe` en el entorno del laboratorio, identifiqué que requería su comando padre original para ejecutarse. A través del **`Event ID 1`** (Process Creation) de Sysmon, extraje el ParentCommandLine exacto necesario para su análisis: `C:\Windows\system32\svchost.exe -k netsvcs -ps Schedule`. 
-
-### 🟢 6. Resumen de Indicadores de Compromiso (IoCs)
-Tabla de referencias cruzadas con los artefactos técnicos y registros auditados a lo largo del caso:
-
-| Fase Kill Chain | Artefacto / Indicador Técnico (IoC) | Origen y Event ID |
-| :--- | :--- | :--- |
-| **Initial Access** | Ráfaga de fuerza bruta y acceso RDP exitoso | `Security.evtx` - 🟣 **`ID 4625 / 4624`** |
-| **Delivery** | Archivo `urgent_.zip` con flujo ADS `Zone.Identifier` | `Sysmon.evtx` - 🟣 **`ID 11`** |
-| **Execution** | Payload secundario en `AppData\Roaming\update.exe` | `Sysmon.evtx` - 🟣 **`ID 1/11`** |
-| **Persistence** | Creación cuenta `support` y asignación a Administrators | `Security.evtx` - 🟣 **`ID 4720/4732`** |
-| **Persistence** | Servicio falso Data Protection Service (`malware.exe`) | `Security.evtx` - 🟣 **`ID 4697`** |
-| **Persistence** | Tarea programada `\AmazonSync` (`troy.exe`) | `Security.evtx` - 🟣 **`ID 4698`** |
-| **C2/Exfil** | Dominio C2 `route.m365officesync.workers.dev` | `Sysmon.evtx` - 🟣 **`ID 22`** |
-
-### 🟢 7. Cierre del Informe Forense
-La elaboración de este informe en el entorno de TryHackMe refleja mi capacidad técnica para realizar triaje de eventos de seguridad en sistemas Windows. Destaca la importancia de no aislar los hallazgos individuales, sino comprender y documentar la estrategia y mentalidad del adversario a través de las fases completas del Cyber Kill Chain.
+🟢 INFORME SOC: DETECCIÓN DE AMENAZAS EN WINDOWS🔵 Análisis Forense basado en el Ciclo de Vida del Adversario (Cyber Kill Chain)ANALISTA RESPONSABLE: Sebastián Navarro M.ENTORNO EVALUADO: TryHackMe - Windows Threat DetectionREGISTROS ANALIZADOS: Sysmon.evtx & Security.evtx🟢 Introducción y Contexto del LaboratorioComo analista SOC, desarrollé este informe basándome en un entorno práctico de detección de amenazas en Windows. El objetivo de este caso de estudio es demostrar la capacidad de analizar un incidente cibernético completo. En lugar de reportar eventos aislados, he correlacionado cada hallazgo técnico con las fases de la Cyber Kill Chain, documentando paso a paso cómo el atacante logró entrar, cómo aseguró su persistencia y cómo estableció comunicación con su servidor de Comando y Control (C2).🟢 1. Fase 1: Acceso Inicial (Initial Access)En esta fase, investigué cómo el atacante logró romper el perímetro de autenticación del servidor.🔵 Intrusión por Fuerza Bruta y Acceso RDP:
+Al analizar los registros de auditoría en Security.evtx y filtrar por el Event ID 4625 (Logon Failure), detecté una ráfaga de intentos de autenticación fallidos contra el sistema. El atacante continuó este ataque hasta lograr adivinar la credencial legítima, consolidando su acceso interactivo remoto. Esto fue comprobado mediante el Event ID 4624, identificando un inicio de sesión exitoso bajo el Logon Type 10 (Escritorio Remoto - RDP), lo que nos permitió registrar la IP de origen del atacante.🟢 2. Fase 2: Entrega de Carga Útil (Delivery)Una vez que el atacante estuvo dentro del sistema, procedió a descargar y alojar sus herramientas para operar.🔵 Entrega del Payload:
+Utilizando la telemetría de Sysmon.evtx y filtrando por el Event ID 11 (File Created), identifiqué la creación de ejecutables sospechosos en el sistema.
+Contexto Forense: El análisis de los metadatos y el Alternate Data Stream (Zone.Identifier) en los archivos sospechosos confirmó que estos provinieron de una descarga directa de Internet, materializando la entrega efectiva del código malicioso en el equipo comprometido.🟢 3. Fase 3: Persistencia y Escalada de Privilegios (Persistence & Privilege Escalation)Sabiendo que la contraseña comprometida podía ser cambiada por el equipo de TI (revocando su acceso inicial), el atacante ejecutó acciones tácticas para asegurar una puerta trasera permanente y con máximos privilegios.🔵 Creación de Cuenta Trampa:
+Revisando Security.evtx mediante el Event ID 4720, detecté la creación manual de un usuario local no autorizado (por ejemplo, cuentas camufladas como support o perfiles de respaldo).🔵 Escalada de Privilegios:
+Inmediatamente después de crear la cuenta, el registro arrojó el Event ID 4732 (Security-enabled local group modification). Esto demostró que el atacante agregó su usuario trampa al grupo Administrators, garantizándole permisos de nivel de sistema sin depender de la cuenta original vulnerada.🟢 4. Fase 4: Persistencia Avanzada (Installation)Para asegurar que el malware se ejecutara de forma automática y silenciosa en cada reinicio del servidor sin intervención humana, el atacante utilizó métodos de evasión en el sistema operativo:🔵 Abuso de Servicios del Sistema:
+Al revisar el Event ID 4697 en los registros de seguridad, evidencié que se instaló un servicio malicioso apuntando a un ejecutable en una ruta anómala (como C:\Windows\Help\). Para evadir sospechas, el atacante camufló este servicio bajo el nombre aparentemente legítimo de Data Protection Service.🔵 Tareas Programadas Engañosas:
+Como método de redundancia, se programó una tarea automática. Analizando el Event ID 4698, detecté que se registró una ejecución constante utilizando el nombre engañoso \Amazon Sync, asegurando que el payload se mantuviera activo.🟢 5. Fase 5: Comando y Control (Command and Control - C2)El objetivo final de toda esta persistencia era ejecutar el payload en segundo plano y mantener comunicación constante con la infraestructura del atacante.🔵 Ejecución Anómala (Parent Process):
+A través del Event ID 1 (Process Creation) de Sysmon, comprobé que el proceso legítimo services.exe fue utilizado como proceso padre para ejecutar el binario malicioso de la persistencia, lanzando el ataque silenciosamente.🔵 Conexión C2 y Resolución DNS:
+Utilizando Sysmon.evtx y filtrando por el Event ID 22 (DNSEvent), detecté las consultas de red iniciadas por este proceso sospechoso. La telemetría DNS confirmó que el ejecutable estaba resolviendo y comunicándose activamente con la dirección/dominio externo del atacante, cerrando el ciclo del ataque.🟢 6. Resumen de Indicadores de Compromiso (IoCs)Tabla de referencias cruzadas con los artefactos técnicos y registros auditados a lo largo de la investigación, utilizada para la fase de contención:Fase Kill ChainIndicador Técnico y Comportamiento (IoC)Origen y Event IDInitial AccessRáfaga de fuerza bruta y acceso RDP exitoso (Logon Type 10)Security.evtx 🟣 ID 4625 / 4624DeliveryCreación de archivos sospechosos (marcas Zone.Identifier)Sysmon.evtx 🟣 ID 11PersistenceCreación de cuenta local y asignación al grupo AdministratorsSecurity.evtx 🟣 ID 4720 / 4732PersistenceServicio falso camuflado como Data Protection Service (C:\Windows\Help\...)Security.evtx 🟣 ID 4697PersistenceTarea programada engañosa \Amazon SyncSecurity.evtx 🟣 ID 4698Execution / C2Ejecución de binario malicioso desde proceso padre services.exeSysmon.evtx 🟣 ID 1C2 / NetworkConsulta DNS hacia la infraestructura externa del atacanteSysmon.evtx 🟣 ID 22🟢 7. Cierre del Informe Forense y MitigaciónLa elaboración de este informe refleja mi capacidad técnica para realizar triaje de eventos de seguridad en sistemas Windows, pasando de la simple lectura de logs a la inteligencia de amenazas. Destaca la importancia de no aislar los hallazgos individuales, sino de comprender y documentar la estrategia y mentalidad del adversario a través de las fases de la Cyber Kill Chain.Acciones de Mitigación Inmediatas Recomendadas:Aislamiento del host comprometido de la red interna.Revocación de la cuenta Administrator y eliminación del usuario trampa.Eliminación del servicio Data Protection Service y la tarea \Amazon Sync.Restricción del puerto 3389 (RDP) detrás de una VPN con MFA e implementación de políticas de bloqueo de cuentas tras intentos fallidos.
