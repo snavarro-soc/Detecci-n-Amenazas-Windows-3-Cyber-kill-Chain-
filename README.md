@@ -24,85 +24,116 @@
 Como analista SOC, desarrollé este informe basándome en el entorno práctico del módulo *Windows Threat Detection 3* de TryHackMe. El objetivo de este caso de estudio es demostrar la capacidad de analizar un incidente cibernético completo. En lugar de reportar eventos aislados, correlacioné cada hallazgo técnico con las fases de la Cyber Kill Chain, documentando paso a paso cómo el atacante logró entrar, qué herramientas ejecutó y cómo aseguró su control sobre la máquina.
 
 ---
+## Fase 1: Acceso Inicial (Initial Access)
 
-## 🟢 1. Fase 1: Acceso Inicial (Initial Access)
+### Análisis Narrativo y Razonamiento
+En esta primera fase investigué cómo el atacante logró romper el perímetro de autenticación del servidor. Al revisar los registros de auditoría en `Security.evtx` (telemetría de Windows Threat Detection 1), mi primer razonamiento fue buscar signos de un intento de intrusión por la fuerza. Para corroborar esta hipótesis, filtré por el **Event ID 4625** (inicio de sesión fallido).
 
-En esta fase, investigué cómo el atacante logró romper el perímetro de autenticación del servidor.
+El resultado reveló una ráfaga masiva y constante de autenticaciones fallidas dirigidas contra la cuenta `Administrator`. La frecuencia de estos eventos (registrados segundo a segundo) confirmó de inmediato el uso de una herramienta automatizada ejecutando un ataque de diccionario.
 
-* 🔵 **Intrusión por Fuerza Bruta:** Al analizar los registros de auditoría en `Security.evtx` y filtrar por el **Event ID 4625** (*Logon Failure*), detecté una ráfaga masiva de intentos de autenticación fallidos contra la cuenta `Administrator`. El atacante continuó este ataque de diccionario hasta lograr adivinar la credencial, consolidando su acceso interactivo por Escritorio Remoto (comprobable mediante el **Event ID 4624**, Tipo de inicio de sesión 10).
+Sabiendo que un atacante no se detiene en los intentos fallidos, la duda lógica que surgió fue: *¿logró adivinar la credencial?* Para responder a esto, cambié el filtro al **Event ID 4624** (inicio de sesión exitoso). Al analizar los eventos posteriores a la ráfaga, confirmé que el 20 de mayo de 2025 a las 09:51:48 se consolidó la intrusión con un acceso exitoso a la cuenta `Administrator`. Al inspeccionar el detalle técnico, identifiqué un **Logon Type 10**, lo que demostró que el acceso se realizó de forma interactiva y remota a través de RDP. En la sección *Network Information* (campos *Source Network Address* y *Workstation Name*), registré la dirección IP y el nombre del equipo utilizado por el atacante para penetrar el sistema.
 
----
-
-## 🟢 2. Fase 2: Entrega de Carga Útil (Delivery)
-
-Una vez que el atacante estuvo dentro del sistema a través de RDP, procedió a alojar sus herramientas maliciosas para operar dentro de la máquina.
-
-* 🔵 **Entrega del Payload:** Utilizando la telemetría de `Sysmon.evtx` y filtrando por el **Event ID 11** (*File Created*), identifiqué la creación de artefactos sospechosos en el sistema con doble extensión y marcas de descarga directa.
-
-> **Contexto Forense:** El análisis del *Alternate Data Stream* `Zone.Identifier` en los archivos arrojados confirmó que estos provinieron de una descarga de Internet, materializando la entrega efectiva del código malicioso en el equipo comprometido.
-
-> 🎥 **VIDEO DEMOSTRATIVO PARTE 1 (Acceso Inicial y Carga de Payload):**  
-> 🔗 [Ver demostración en video: Fuerza Bruta y Delivery](PEGA_AQUI_TU_LINK_DEL_VIDEO_1)
-
----
-
-## 🟢 3. Fase 3: Persistencia y Escalada de Privilegios (Persistence & Privilege Escalation)
-
-Sabiendo que la contraseña comprometida del administrador podía ser revocada por el equipo de TI, el atacante ejecutó acciones tácticas para asegurar una puerta trasera permanente.
-
-* 🔵 **Creación de Cuenta Trampa:** Revisando `Security.evtx` mediante el **Event ID 4720**, detecté la creación manual de un usuario local llamado `support`.
-* 🔵 **Escalada de Privilegios:** Inmediatamente después de crear la cuenta, el registro arrojó el **Event ID 4732** (*Security-enabled local group modification*). Esto demostró que el atacante agregó manualmente al usuario `support` al grupo `Administrators`, garantizándole permisos de nivel de sistema y acceso RDP sin depender de la cuenta original.
+### Ficha Técnica de Hallazgos
+* **Objetivo:** Identificar el vector de entrada y confirmar el compromiso del servidor.
+* **Fuente de datos:** `Security.evtx` (Windows Threat Detection 1).
+* **Análisis de Fuerza Bruta:**
+  * **Event ID:** `4625` (An Account Failed to Log On).
+  * **Comportamiento:** Ráfaga masiva y automatizada contra la cuenta `Administrator`.
+  * **Frecuencia:** Intentos fallidos segundo a segundo (ataque de diccionario).
+* **Consolidación de Acceso:**
+  * **Event ID:** `4624` (An Account Was Successfully Logged On).
+  * **Fecha y Hora:** 20/05/2025 a las 09:51:48.
+  * **Tipo de Inicio de Sesión:** `Logon Type 10` (Remote Interactive / RDP).
+  * **Cuenta Compromedida:** `Administrator`.
+  * **Evidencia Técnica:** Dirección IP de origen y nombre del equipo atacante registrados en el apartado *Network Information* (*Source Network Address* y *Workstation Name*).
 
 ---
 
-## 🟢 4. Fase 4: Persistencia Avanzada (Installation & Persistence)
+## Fase 2: Persistencia Inicial y Elevación de Privilegios
 
-Para asegurar que el malware se ejecutara de forma automática y silenciosa en cada reinicio del servidor sin intervención humana, el atacante utilizó dos métodos de evasión adicionales:
+### Análisis Narrativo y Razonamiento
+Una vez que el atacante estuvo dentro del sistema mediante RDP con la cuenta `Administrator`, su siguiente movimiento lógico era asegurar una vía de acceso secundaria. Como analista, sé que los atacantes prevén que la contraseña del administrador principal pueda ser cambiada o su sesión revocada. Por lo tanto, mi hipótesis fue que el atacante crearía una cuenta local de respaldo durante esa misma sesión interactiva.
 
-* 🔵 **Abuso de Servicios del Sistema:** El atacante registró un servicio malicioso apuntando a rutas inusuales. Al revisar el **Event ID 4697** (*A service was installed in the system*), evidencié que el binario fue instalado camuflándose bajo el nombre aparentemente legítimo de *Data Protection Service*, pero apuntando a la ruta anómala `C:\Windows\Help\`.
-* 🔵 **Tareas Programadas Engañosas:** También se programó la ejecución de código. Analizando el contenido XML de la tarea en el **Event ID 4698**, detecté que se registró utilizando el nombre engañoso *Amazon Sync* para despistar a los administradores del sistema.
+Para verificar esta sospecha, filtré en `Security.evtx` por el **Event ID 4720** (creación de cuenta de usuario). La búsqueda confirmó la hipótesis: desde la sesión RDP activa de `Administrator` se creó la cuenta de usuario local `support`. 
 
----
+Sin embargo, una cuenta estándar no le serviría de mucho para controlar el servidor. El siguiente paso del atacante tenía que ser otorgarle privilegios totales. Para auditar este movimiento, filtré por el **Event ID 4732** (incorporación de un miembro a un grupo local de seguridad). Ahí descubrí que la cuenta `support` fue agregada inmediatamente al grupo `Administrators`. Con esto, el atacante dejó configurada una puerta trasera interactiva legítima en apariencia para reconectarse cuando lo deseara.
 
-## 🟢 5. Fase 5: Comando y Control (Command and Control)
-
-El objetivo final de toda esta persistencia era mantener comunicación constante con la infraestructura del atacante (Servidor C2).
-
-* 🔵 **Validación de Ejecución en Memoria:** Al analizar Sysmon mediante el **Event ID 1** (*Process Creation*), rastreamos el comportamiento del proceso malicioso, confirmando a través del campo *ParentImage* que los servicios y tareas creadas en la Fase 4 lograron levantar exitosamente el *payload* en memoria operando en segundo plano.
-* 🔵 **Conexión C2 y Canal DNS:** Para validar el canal saliente, filtramos `Sysmon.evtx` por el **Event ID 22** (*DNSEvent*). Detectamos las consultas DNS iniciadas por el proceso anómalo, logrando vincular la ejecución del *payload* directamente con la resolución del dominio de la infraestructura de Comando y Control del atacante.
-
-> 🎥 **VIDEO DEMOSTRATIVO PARTE 2 (Persistencia, C2 y Triaje Completo):**  
-> 🔗 [Ver investigación completa en video: Persistencia, C2 y Detección](PEGA_AQUI_TU_LINK_DEL_VIDEO_2)
-
----
-
-## 🟢 6. Resumen de Indicadores de Compromiso (IoCs)
-
-Tabla de referencias cruzadas con los artefactos técnicos y registros auditados a lo largo del caso:
-
-| Fase Kill Chain | Artefacto / Indicador Técnico (IoC) | Origen y Event ID |
-| :--- | :--- | :--- |
-| **Initial Access** | Ráfaga de fuerza bruta y acceso RDP exitoso (Tipo 10) | `Security.evtx` 🟣 ID 4625 / 4624 |
-| **Delivery** | Creación de archivos y rastros de descarga (`Zone.Identifier`) | `Sysmon.evtx` 🟣 ID 11 |
-| **Persistence** | Creación cuenta `support` y asignación a `Administrators` | `Security.evtx` 🟣 ID 4720 / 4732 |
-| **Persistence** | Servicio falso *Data Protection Service* en `C:\Windows\Help` | `Security.evtx` 🟣 ID 4697 |
-| **Persistence** | Tarea programada maliciosa camuflada como *Amazon Sync* | `Security.evtx` 🟣 ID 4698 |
-| **Execution** | Proceso hijo malicioso lanzado desde el servicio/tarea (`ParentImage`) | `Sysmon.evtx` 🟣 ID 1 |
-| **C2 / Exfil** | Consultas salientes hacia el dominio/IP del atacante | `Sysmon.evtx` 🟣 ID 22 / ID 3 |
+### Ficha Técnica de Hallazgos
+* **Objetivo:** Rastrear la creación de cuentas locales de respaldo para mantener acceso secundario.
+* **Fuente de datos:** `Security.evtx` (Windows Threat Detection 1).
+* **Creación de Cuenta Local:**
+  * **Event ID:** `4720` (A user account was created).
+  * **Cuenta Creada:** `support`.
+  * **Origen:** Sesión activa de RDP bajo la cuenta `Administrator`.
+* **Elevación de Privilegios:**
+  * **Event ID:** `4732` (A member was added to a security-enabled local group).
+  * **Grupo Destino:** `Administrators`.
+  * **Impacto:** Otorgamiento de privilegios administrativos completos a la nueva cuenta `support`.
 
 ---
 
-## 🟢 7. Cierre del Informe Forense y Mitigación
+## Fase 3: Entrega de Carga Útil (Payload Delivery)
 
-La elaboración de este informe refleja mi capacidad técnica para realizar triaje de eventos de seguridad en sistemas Windows. Al atajar la amenaza en la fase de Comando y Control, se evitaron acciones de impacto sobre el objetivo (exfiltración o cifrado).
+### Análisis Narrativo y Razonamiento
+Con la persistencia de usuario garantizada, la investigación debía determinar qué herramientas o malware ingresó el atacante al servidor para comenzar a operar. Para este análisis de comportamiento en la máquina, correlacioné la línea de tiempo cambiando a la telemetría de `Sysmon` en el laboratorio Windows Threat Detection 3.
 
-Para contener el incidente, las acciones inmediatas radican en:
-1. Aislar el host de la red.
-2. Revocar las credenciales del Administrador y eliminar la cuenta `support`.
-3. Purgar el servicio *Data Protection Service* y la tarea *Amazon Sync*.
+Mi razonamiento analítico consistió en buscar la creación de archivos sospechosos en el sistema generados durante la ventana temporal de la sesión activa del atacante. Al filtrar por el **Event ID 11** de Sysmon (File Creation), identifiqué la descarga y creación del archivo `Urgent.inc.doc.Zone.Identifier`. 
 
-A nivel preventivo, se requiere restringir la exposición del puerto 3389 (RDP) detrás de una VPN con MFA e implementar políticas de bloqueo de cuenta ante ráfagas de autenticación fallida.
+La estructura del nombre presentó de inmediato una anomalía: el uso de una doble extensión (`.inc.doc`), una técnica clásica de evasión para engañar al usuario o a los controles básicos del sistema. Esto confirmó que el atacante utilizó la sesión de administrador para descargar directamente su carga útil desde un servidor externo.
 
+### Ficha Técnica de Hallazgos
+* **Objetivo:** Identificar la descarga e inoculación de ejecutable malicioso dentro del sistema.
+* **Fuente de datos:** Registros de `Sysmon` (Windows Threat Detection 3).
+* **Detección de Archivo Malicioso:**
+  * **Event ID (Sysmon):** `11` (FileCreate / File Creation).
+  * **Nombre de Archivo:** `Urgent.inc.doc.Zone.Identifier`.
+  * **Indicador de Compromiso (IOC):** Estructura de nombre con doble extensión (`.inc.doc`).
+  * **Mecanismo:** Descarga directa desde servidor externo durante la sesión activa de administrador.
+
+---
+
+## Fase 4: Persistencia Avanzada (Advanced Persistence)
+
+### Análisis Narrativo y Razonamiento
+Entendiendo la psicología del atacante, una cuenta de usuario alternativa no es suficiente garantía: si el servidor se reinicia o el equipo de SOC detecta al usuario `support`, el atacante pierde el acceso. Por lo tanto, el atacante necesita mecanismos que ejecuten su malware de forma automática sin depender de que un usuario inicie sesión. Para rastrear estos mecanismos invisibles, volví a auditar los registros del sistema en `Security.evtx`.
+
+En primer lugar, busqué la creación de servicios maliciosos filtrando por el **Event ID 4697** (instalación de un servicio en el sistema). Detecté la instalación de un servicio configurado con un nombre engañoso: `Data Protection Service`. Al examinar el campo *Service File Name*, descubrí que en realidad apuntaba a la ejecución del binario `nessus.exe`.
+
+En segundo lugar, asumiendo que un atacante precavido establece capas de redundancia por si el servicio es descubierto y eliminado, investigué la creación de tareas programadas filtrando por el **Event ID 4698**. El hallazgo confirmó la redundancia: se creó la tarea programada `Amazon Sync`, cuya ruta de ejecución apuntaba al binario `troy.exe` alojado en `C:\Program Files\Common Files\troy.exe`. Ambas configuraciones le garantizaban al atacante la reconexión automática tras cualquier reinicio del sistema.
+
+### Ficha Técnica de Hallazgos
+* **Objetivo:** Documentar mecanismos de ejecución automática del malware resistentes a reinicios.
+* **Fuente de datos:** `Security.evtx` (Windows Threat Detection 3).
+* **Mecanismo Primario (Servicio Malicioso):**
+  * **Event ID:** `4697` (A service was installed in the system).
+  * **Nombre del Servicio:** `Data Protection Service`.
+  * **Ruta del Ejecutable (*Service File Name*):** `nessus.exe`.
+* **Mecanismo Redundante (Tarea Programada):**
+  * **Event ID:** `4698` (A scheduled task was created).
+  * **Nombre de la Tarea:** `Amazon Sync`.
+  * **Ruta del Ejecutable:** `C:\Program Files\Common Files\troy.exe`.
+
+---
+
+## Fase 5: Comando y Control (C2 - Command & Control)
+
+### Análisis Narrativo y Razonamiento
+En la fase final del análisis, mi objetivo fue verificar si los mecanismos de persistencia creados funcionaron tras un reinicio del sistema y cómo el malware establecía comunicación con el exterior. Para evaluar la actividad a nivel de procesos y red, volví a consultar los registros de `Sysmon`.
+
+Para rastrear la ejecución del proceso, filtré por el **Event ID 1** de Sysmon (Process Creation) enfocado en el proceso padre `services.exe`. Verifiqué que, al arrancar el sistema operativo, `services.exe` levantó automáticamente el servicio falso `Data Protection Service`, iniciando el binario malicioso en segundo plano sin intervención humana.
+
+Finalmente, para comprobar la salida hacia internet y la infraestructura del atacante, filtré por el **Event ID 22** de Sysmon (DNS Query). En el campo *QueryName*, identifiqué las peticiones de resolución de nombres DNS realizadas por el ejecutable malicioso buscando la IP de su servidor C2. Con este hallazgo se confirmó la apertura de un canal de comunicación bidireccional saliente, completando la investigación del ciclo de vida del ataque.
+
+### Ficha Técnica de Hallazgos
+* **Objetivo:** Confirmar la activación automática del malware post-reinicio y la generación de tráfico C2.
+* **Fuente de datos:** Registros de `Sysmon` (Windows Threat Detection 3).
+* **Ejecución de Proceso:**
+  * **Event ID (Sysmon):** `1` (Process Creation).
+  * **Proceso Padre (*ParentImage*):** `services.exe`.
+  * **Comportamiento:** Activación automática del binario malicioso por parte de `services.exe` mediante el servicio `Data Protection Service`.
+* **Canal de Comunicación C2:**
+  * **Event ID (Sysmon):** `22` (DNSEvent - DNS query).
+  * **Campo Clave (*QueryName*):** Petición de resolución DNS generada por el proceso persistente hacia la infraestructura externa del atacante.
 
 INFORME OPCION 2 CUENTA UNA HISTORIA ORDEN CORRECTO
 ## Fase 1: Acceso Inicial (Initial Access)
