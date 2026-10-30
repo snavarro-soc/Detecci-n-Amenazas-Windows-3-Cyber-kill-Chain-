@@ -27,6 +27,15 @@ Como analista SOC, desarrollé este informe basándome en el entorno práctico d
 ## 🟢 Fase 1: Ataque de Fuerza Bruta y Acceso (Initial Access)
 
 ### Análisis Técnico
+Para dar inicio a esta primera fase, simulé recibir una alerta por una ráfaga de inicios de sesión fallidos. Utilicé los registros proporcionados en el archivo **`Security.evtx`** de **Windows Threat Detection**
+Lo primero que hice fue realizar el filtro por el **`Event ID 4625`**, el cual corresponde a inicios de sesión fallidos.
+
+Esta ráfaga constante y la frecuencia rápida de estos eventos me confirmaron que se trataba de una herramienta automatizada ejecutando un ataque de diccionario, teniendo como blanco principal la cuenta **`Administrator`** 
+
+Ahora, para verificar si el ataque tuvo éxito y el atacante logró ingresar, cambié el filtro al **`Event ID 4624`** (inicio de sesión exitoso). Busqué específicamente el **`Logon Type 10`**, que señala conexiones remotas por RDP. Aquí confirmé que la intrusión se consolidó con un acceso exitoso para la cuenta **`Administrator`** el **20 de mayo de 2025** a las **09:51:48**.
+
+
+
 En esta primera fase investigué cómo el atacante logró romper el perímetro de autenticación del servidor. Al revisar los registros de auditoría en <font color="#00FF66"><b>Security.evtx</b></font> (telemetría de **Windows Threat Detection 1**), mi primer razonamiento fue buscar signos de un intento de intrusión por la fuerza. Para corroborar esta hipótesis, filtré por el <font color="#00FF66"><b>Event ID 4625</b></font> (inicio de sesión fallido).
 
 El resultado reveló una ráfaga masiva y constante de autenticaciones fallidas dirigidas contra la cuenta <font color="#00FF66"><b>Administrator</b></font>. La frecuencia de estos eventos (registrados segundo a segundo) confirmó de inmediato el uso de una herramienta automatizada ejecutando un ataque de diccionario.
@@ -100,20 +109,6 @@ Entendiendo la psicología del atacante, una cuenta de usuario alternativa no es
 En primer lugar, busqué la creación de servicios maliciosos filtrando por el <font color="#00FF66"><b>Event ID 4697</b></font> (instalación de un servicio en el sistema). Detecté la instalación de un servicio configurado con un nombre engañoso: <font color="#00FF66"><b>Data Protection Service</b></font>. Al examinar el campo *Service File Name*, descubrí que en realidad apuntaba a la ejecución del binario <font color="#00FF66"><b>nessus.exe</b></font>.
 
 En segundo lugar, asumiendo que un atacante precavido establece capas de redundancia por si el servicio es descubierto y eliminado, investigué la creación de tareas programadas filtrando por el <font color="#00FF66"><b>Event ID 4698</b></font>. El hallazgo confirmó la redundancia: se creó la tarea programada <font color="#00FF66"><b>Amazon Sync</b></font>, cuya ruta de ejecución apuntaba al binario <font color="#00FF66"><b>troy.exe</b></font> alojado en <font color="#00FF66"><b>C:\Program Files\Common Files\troy.exe</b></font>. Ambas configuraciones le garantizaban al atacante la reconexión automática tras cualquier reinicio del sistema.
-
-### Lista de Hallazgos
-Objetivo: Documentar mecanismos automáticos del malware resistentes a reinicios.
-Fuente_de_Datos: Security.evtx (Windows Threat Detection)
-
-Mecanismo_Primario_Servicio:
-  Event_ID: 4697 (A service was installed in the system)
-  Nombre_Servicio: Data Protection Service
-  Ruta_Ejecutable: nessus.exe
-
-Mecanismo_Redundante_Tarea:
-  Event_ID: 4698 (A scheduled task was created)
-  Nombre_Tarea: Amazon Sync
-  Ruta_Ejecutable: C:\Program Files\Common Files\troy.exe
 
 ### Lista de Hallazgos
 * **Objetivo:** Documentar mecanismos de ejecución automática del malware resistentes a reinicios.
