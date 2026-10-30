@@ -176,6 +176,54 @@ Tabla de referencias cruzadas con los artefactos técnicos y registros auditados
 
 
 
+
+
+## 🔴 Fase 4: Persistencia Avanzada (Advanced Persistence)
+
+### 🧠 Análisis Técnico
+Entendiendo la psicología del atacante, una cuenta alternativa no es suficiente garantía: si el servidor se reinicia o el equipo de SOC detecta al usuario **`support`**, el atacante pierde el acceso. Por lo tanto, necesita mecanismos que ejecuten su malware de forma automática sin depender de que un usuario inicie sesión. Para rastrear estos invisibles, volví a auditar los registros del sistema.
+
+En primer lugar, busqué la creación de servicios maliciosos filtrando por el **`Event ID 4697`** (instalación de un servicio en el sistema). Detecté la instalación de un servicio con un nombre engañoso: **`Data Protection Service`**. Al examinar el campo de ruta, descubrí que apuntaba a la ejecución del binario **`nessus.exe`**.
+
+En segundo lugar, asumiendo que un atacante precavido establece capas de redundancia, investigué la creación de tareas programadas filtrando por el **`Event ID 4698`**. El hallazgo confirmó la redundancia: se creó la tarea programada **`Amazon Sync`**, cuya ruta de ejecución apuntaba al binario **`troy.exe`** alojado en **`C:\Program Files\Common Files\troy.exe`**.
+
+### 👾 Lista de Hallazgos
+```yaml
+Objetivo: Documentar mecanismos automáticos del malware resistentes a reinicios.
+Fuente_de_Datos: Security.evtx (Windows Threat Detection)
+
+Mecanismo_Primario_Servicio:
+  Event_ID: 4697 (A service was installed in the system)
+  Nombre_Servicio: Data Protection Service
+  Ruta_Ejecutable: nessus.exe
+
+Mecanismo_Redundante_Tarea:
+  Event_ID: 4698 (A scheduled task was created)
+  Nombre_Tarea: Amazon Sync
+  Ruta_Ejecutable: C:\Program Files\Common Files\troy.exe
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ## 🔴 Fase 1: Ataque de Fuerza Bruta y Acceso Inicial (Initial Access)
 
 ### 🧠 Análisis Técnico
@@ -187,7 +235,7 @@ Esta ráfaga constante y la frecuencia rápida de estos eventos me confirmaron q
 Ahora, para verificar si el ataque tuvo éxito y el atacante logró ingresar, cambié el filtro al **`Event ID 4624`** (inicio de sesión exitoso). Busqué específicamente el **`Logon Type 10`**, que señala conexiones remotas por RDP. Aquí confirmé que la intrusión se consolidó con un acceso exitoso para la cuenta **`Administrator`** el **20 de mayo de 2025** a las **09:51:48**. Para saber la IP y el origen, revisé el apartado *Network Information* (*Source Network Address* y *Workstation Name*).
 
 ### 👾 Lista de Hallazgos
-```yaml
+``yaml
 Objetivo: Analizar la ráfaga de intentos fallidos y confirmar el acceso RDP exitoso.
 Fuente_de_Datos: Security.evtx (Windows Threat Detection)
 
