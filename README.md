@@ -33,6 +33,21 @@ Lo primero que hice fue realizar el filtro por el **`Event ID 4625`**, el cual c
 Esta ráfaga constante y la frecuencia rápida de estos eventos me confirmaron que se trataba de una herramienta automatizada ejecutando un ataque de diccionario, teniendo como blanco principal la cuenta **`Administrator`** 
 
 ### Lista de Hallazgos
+Objetivo: Analizar la ráfaga de intentos fallidos y confirmar el acceso RDP exitoso.
+Fuente_de_Datos: Security.evtx (Windows Threat Detection)
+
+Analisis_de_Fuerza_Bruta:
+  Event_ID: 4625 (Inicio de sesión fallido)
+  Comportamiento: Ráfaga constante y automatizada (ataque de diccionario)
+  Cuenta_Objetivo: Administrator
+
+Consolidacion_de_Acceso:
+  Event_ID: 4624 (Inicio de sesión exitoso)
+  Fecha_Hora: "20/05/2025 - 09:51:48"
+  Tipo_de_Inicio: Logon Type 10 (Remote Interactive / RDP)
+  Cuenta_Comprometida: Administrator
+
+  
 * **Objetivo:** Identificar el vector de entrada y confirmar el compromiso del servidor.
 * **Fuente de datos:** <font color="#00FF66"><b>Security.evtx</b></font> (Windows Threat Detection 1).
 * **Análisis de Fuerza Bruta:**
