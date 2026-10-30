@@ -102,6 +102,20 @@ En primer lugar, busqué la creación de servicios maliciosos filtrando por el <
 En segundo lugar, asumiendo que un atacante precavido establece capas de redundancia por si el servicio es descubierto y eliminado, investigué la creación de tareas programadas filtrando por el <font color="#00FF66"><b>Event ID 4698</b></font>. El hallazgo confirmó la redundancia: se creó la tarea programada <font color="#00FF66"><b>Amazon Sync</b></font>, cuya ruta de ejecución apuntaba al binario <font color="#00FF66"><b>troy.exe</b></font> alojado en <font color="#00FF66"><b>C:\Program Files\Common Files\troy.exe</b></font>. Ambas configuraciones le garantizaban al atacante la reconexión automática tras cualquier reinicio del sistema.
 
 ### Lista de Hallazgos
+Objetivo: Documentar mecanismos automáticos del malware resistentes a reinicios.
+Fuente_de_Datos: Security.evtx (Windows Threat Detection)
+
+Mecanismo_Primario_Servicio:
+  Event_ID: 4697 (A service was installed in the system)
+  Nombre_Servicio: Data Protection Service
+  Ruta_Ejecutable: nessus.exe
+
+Mecanismo_Redundante_Tarea:
+  Event_ID: 4698 (A scheduled task was created)
+  Nombre_Tarea: Amazon Sync
+  Ruta_Ejecutable: C:\Program Files\Common Files\troy.exe
+
+### Lista de Hallazgos
 * **Objetivo:** Documentar mecanismos de ejecución automática del malware resistentes a reinicios.
 * **Fuente de datos:** <font color="#00FF66"><b>Security.evtx</b></font> (Windows Threat Detection 3).
 * **Mecanismo Primario (Servicio Malicioso):**
