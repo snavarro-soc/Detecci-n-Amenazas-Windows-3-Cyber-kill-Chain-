@@ -1,4 +1,4 @@
-# Detección de Amenazas en Windows 33333: Cyber Kill Chain
+# Detección de Amenazas en Windows 3: Cyber Kill Chain
 **Análisis forense basado en el ciclo de vida del adversario.** Investigación respaldada en los laboratorios prácticos del módulo **Windows Threat Detection 3** de **TryHackMe**, evaluando la telemetría de `Sysmon.evtx` y `Security.evtx` para reconstruir la línea de tiempo de un ataque real.
 
 ## 🟢 INFORME SOC: DETECCIÓN DE AMENAZAS EN WINDOWS
