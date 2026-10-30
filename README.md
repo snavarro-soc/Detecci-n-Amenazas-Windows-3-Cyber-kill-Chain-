@@ -175,59 +175,6 @@ Tabla de referencias cruzadas con los artefactos técnicos y registros auditados
 
 
 
-## 🔵 Fase 6: Resumen de Indicadores de Compromiso (IoCs)
-
-Tabla de referencias cruzadas con los artefactos técnicos y registros auditados a lo largo del caso:
-
-| Fase Kill Chain | Artefacto / Indicador Técnico (IoC) | Origen y Event ID |
-| :--- | :--- | :--- |
-| **Initial Access** | Ráfaga de fuerza bruta y acceso RDP exitoso (Tipo 10) a <font color="#00FF66"><b>Administrator</b></font> | Security.evtx 🔵 ID <font color="#00FF66"><b>4625 / 4624</b></font> |
-| **Persistence** | Creación cuenta <font color="#00FF66"><b>support</b></font> y asignación a <font color="#00FF66"><b>Administrators</b></font> | Security.evtx 🔵 ID <font color="#00FF66"><b>4720 / 4732</b></font> |
-| **Delivery** | Creación de archivo con rastros de descarga ( <font color="#00FF66"><b>Urgent.inc.doc.Zone.Identifier</b></font> ) | Sysmon 🔵 ID <font color="#00FF66"><b>11</b></font> |
-| **Persistence** | Servicio falso <font color="#00FF66"><b>Data Protection Service</b></font> apuntando a <font color="#00FF66"><b>nessus.exe</b></font> | Security.evtx 🔵 ID <font color="#00FF66"><b>4697</b></font> |
-| **Persistence** | Tarea programada maliciosa camuflada como <font color="#00FF66"><b>Amazon Sync</b></font> ( <font color="#00FF66"><b>troy.exe</b></font> ) | Security.evtx 🔵 ID <font color="#00FF66"><b>4698</b></font> |
-| **Execution** | Proceso hijo malicioso lanzado desde el servicio padre ( <font color="#00FF66"><b>services.exe</b></font> ) | Sysmon 🔵 ID <font color="#00FF66"><b>1</b></font> |
-| **C2 / Exfil** | Consultas DNS salientes hacia el dominio/IP del atacante | Sysmon 🔵 ID <font color="#00FF66"><b>22</b></font> |
-
-
-## 🔵 Fase 6: Resumen de Indicadores de Compromiso (IOCs)
-
-### Consolidados de la Investigación Forense
-Para facilitar las tareas de monitoreo, bloqueo y cacería de amenazas (Threat Hunting) por parte del equipo de respuesta a incidentes, se consolidan todos los Indicadores de Compromiso (IOCs) extraídos durante el análisis:
-
-* **Archivos y Cargas Útiles Maliciosas:**
-  * <font color="#00FF66"><b>Urgent.inc.doc.Zone.Identifier</b></font> (Payload inicial con técnica de doble extensión).
-  * <font color="#00FF66"><b>nessus.exe</b></font> (Binario malicioso enmascarado como herramienta de escaneo y vinculado al servicio falso).
-  * <font color="#00FF66"><b>C:\Program Files\Common Files\troy.exe</b></font> (Binario persistente vinculado a la tarea programada redundante).
-
-* **Cuentas de Usuario y Credenciales:**
-  * <font color="#00FF66"><b>Administrator</b></font> (Cuenta legítima comprometida mediante ataque de fuerza bruta RDP).
-  * <font color="#00FF66"><b>support</b></font> (Cuenta de usuario ilegítima creada por el atacante e integrada al grupo <font color="#00FF66"><b>Administrators</b></font>).
-
-* **Artefactos de Persistencia en Sistema:**
-  * Servicio del Sistema: <font color="#00FF66"><b>Data Protection Service</b></font>.
-  * Tarea Programada: <font color="#00FF66"><b>Amazon Sync</b></font>.
-
-* **Red y Comunicaciones C2:**
-  * Registros de peticiones DNS salientes vinculadas al <font color="#00FF66"><b>Event ID 22</b></font> de Sysmon asociadas a la infraestructura C2 del atacante.
-  * Conexiones entrantes mediante <font color="#00FF66"><b>Logon Type 10</b></font> desde dirección IP remota de origen registrada en el <font color="#00FF66"><b>Event ID 4624</b></font>.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
