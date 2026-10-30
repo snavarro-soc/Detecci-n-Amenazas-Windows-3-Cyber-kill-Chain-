@@ -168,8 +168,11 @@ Tabla de referencias cruzadas con los artefactos técnicos y registros auditados
 * **Políticas de Bloqueo de Cuentas:** Configurar políticas de bloqueo (*Account Lockout Policy*) en Windows para inhabilitar automáticamente cuentas de usuario tras 3 a 5 intentos fallidos consecutivos de inicio de sesión, neutralizando ataques de diccionario automatizados.
 * **Monitoreo y Reglas de Alerta en SIEM:** Crear reglas de detección automatizadas para auditar en tiempo real la creación de nuevos servicios (<font color="#00FF66"><b>Event ID 4697</b></font>), tareas programadas (<font color="#00FF66"><b>Event ID 4698</b></font>) y adición de usuarios a grupos privileged (<font color="#00FF66"><b>Event ID 4732</b></font>).
 
-
-
+---
+### 🎯 Competencias Demostradas en este Caso (SOC L1)
+* **Construcción de Narrativa del Ataque:** Procesamiento de una alerta inicial por fuerza bruta y transformación de eventos dispares (`Security.evtx` y `Sysmon`) en una línea de tiempo coherente del incidente.
+* **Verificación de Hipótesis y Telemetría:** Confirmación técnica del vector de entrada, identificación de cuentas secundarias no autorizadas, mecanismos de persistencia redundantes y resolución de tráfico C2 saliente.
+* **Triaje y Respuesta Ejecutable:** Formulación de medidas inmediatas de erradicación y recomendaciones de *hardening* orientadas a neutralizar la amenaza y contener el riesgo operativo.
 
 
 
