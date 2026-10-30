@@ -21,7 +21,8 @@
 
 ## 🟢 Introducción y Contexto del Laboratorio
 
-Como analista SOC, desarrollé este informe basándome en el entorno práctico del módulo *Windows Threat Detection 3* de TryHackMe. El objetivo de este caso de estudio es demostrar la capacidad de analizar un incidente cibernético completo. En lugar de reportar eventos aislados, correlacioné cada hallazgo técnico con las fases de la Cyber Kill Chain, documentando paso a paso cómo el atacante logró entrar, qué herramientas ejecutó y cómo aseguró su control sobre la máquina. Además incluyo mitigaciones y un plan de acción defensiva.
+Como Analista SOC, el objetivo principal de este proyecto fue investigar y documentar de extremo a extremo un incidente de seguridad simulado a partir de logs de Windows y Sysmon. A través del análisis de telemetría, correlación de eventos y la reconstrucción de la línea de tiempo, se identificó la secuencia completa del ataque: desde el acceso inicial por fuerza bruta (RDP) y la creación de persistencia local, hasta la ejecución de cargas útiles y la confirmación de tráfico de Comando y Control (C2). Este trabajo refleja la aplicación rigurosa de metodologías de triaje, caza de amenazas (Threat Hunting) y la entrega eficiente de las medidas de mitigación y acción para contener el impacto. 
+
 
 ---
 ## 🟢 Fase 1: Ataque de Fuerza Bruta y Acceso (Initial Access)
