@@ -24,7 +24,7 @@
 Como analista SOC, desarrollé este informe basándome en el entorno práctico del módulo *Windows Threat Detection 3* de TryHackMe. El objetivo de este caso de estudio es demostrar la capacidad de analizar un incidente cibernético completo. En lugar de reportar eventos aislados, correlacioné cada hallazgo técnico con las fases de la Cyber Kill Chain, documentando paso a paso cómo el atacante logró entrar, qué herramientas ejecutó y cómo aseguró su control sobre la máquina.
 
 ---
-## 🟢 Fase 1: Acceso Inicial (Initial Access)
+## 🟢 Fase 1: Ataque de Fuerza Bruta y Acceso (Initial Access)
 
 ### Análisis Técnico
 En esta primera fase investigué cómo el atacante logró romper el perímetro de autenticación del servidor. Al revisar los registros de auditoría en <font color="#00FF66"><b>Security.evtx</b></font> (telemetría de **Windows Threat Detection 1**), mi primer razonamiento fue buscar signos de un intento de intrusión por la fuerza. Para corroborar esta hipótesis, filtré por el <font color="#00FF66"><b>Event ID 4625</b></font> (inicio de sesión fallido).
@@ -167,6 +167,72 @@ Tabla de referencias cruzadas con los artefactos técnicos y registros auditados
 * **Protección del Perímetro RDP:** Deshabilitar la exposición directa del puerto 3389 (RDP) a Internet. Implementar una solución de VPN corporativa con Autenticación de Doble Factor (MFA) obligatoria para todo acceso remoto.
 * **Políticas de Bloqueo de Cuentas:** Configurar políticas de bloqueo (*Account Lockout Policy*) en Windows para inhabilitar automáticamente cuentas de usuario tras 3 a 5 intentos fallidos consecutivos de inicio de sesión, neutralizando ataques de diccionario automatizados.
 * **Monitoreo y Reglas de Alerta en SIEM:** Crear reglas de detección automatizadas para auditar en tiempo real la creación de nuevos servicios (<font color="#00FF66"><b>Event ID 4697</b></font>), tareas programadas (<font color="#00FF66"><b>Event ID 4698</b></font>) y adición de usuarios a grupos privileged (<font color="#00FF66"><b>Event ID 4732</b></font>).
+
+
+
+
+
+
+
+
+
+## 🔴 Fase 1: Ataque de Fuerza Bruta y Acceso Inicial (Initial Access)
+
+### 🧠 Análisis Técnico
+Para dar inicio a esta primera fase, simulé recibir una alerta por una ráfaga de inicios de sesión fallidos. Utilicé los registros proporcionados en el archivo **`Security.evtx`** de **Windows Threat Detection**
+Lo primero que hice fue realizar el filtro por el **`Event ID 4625`**, el cual corresponde a inicios de sesión fallidos.
+
+Esta ráfaga constante y la frecuencia rápida de estos eventos me confirmaron que se trataba de una herramienta automatizada ejecutando un ataque de diccionario, teniendo como blanco principal la cuenta **`Administrator`** 
+
+Ahora, para verificar si el ataque tuvo éxito y el atacante logró ingresar, cambié el filtro al **`Event ID 4624`** (inicio de sesión exitoso). Busqué específicamente el **`Logon Type 10`**, que señala conexiones remotas por RDP. Aquí confirmé que la intrusión se consolidó con un acceso exitoso para la cuenta **`Administrator`** el **20 de mayo de 2025** a las **09:51:48**. Para saber la IP y el origen, revisé el apartado *Network Information* (*Source Network Address* y *Workstation Name*).
+
+### 👾 Lista de Hallazgos
+```yaml
+Objetivo: Analizar la ráfaga de intentos fallidos y confirmar el acceso RDP exitoso.
+Fuente_de_Datos: Security.evtx (Windows Threat Detection)
+
+Analisis_de_Fuerza_Bruta:
+  Event_ID: 4625 (Inicio de sesión fallido)
+  Comportamiento: Ráfaga constante y automatizada (ataque de diccionario)
+  Cuenta_Objetivo: Administrator
+
+Consolidacion_de_Acceso:
+  Event_ID: 4624 (Inicio de sesión exitoso)
+  Fecha_Hora: "20/05/2025 - 09:51:48"
+  Tipo_de_Inicio: Logon Type 10 (Remote Interactive / RDP)
+  Cuenta_Comprometida: Administrator
+
+
+
+## 🔴 Fase 1: Ataque de Fuerza Bruta y Acceso Inicial (Initial Access)
+
+### 🧠 Análisis Técnico
+Para dar inicio a esta primera fase, simulé recibir una alerta por una ráfaga de inicios de sesión fallidos. Utilicé los registros proporcionados en el archivo **`Security.evtx`** de **Windows Threat Detection**. Lo primero que hice fue realizar el filtro por el **`Event ID 4625`**, el cual corresponde a inicios de sesión fallidos.
+
+Esta ráfaga constante y la frecuencia rápida de estos eventos me confirmaron que se trataba de una herramienta automatizada ejecutando un ataque de diccionario, teniendo como blanco principal la cuenta **`Administrator`**. 
+
+Ahora, para verificar si el ataque tuvo éxito y el atacante logró ingresar, cambié el filtro al **`Event ID 4624`** (inicio de sesión exitoso). Busqué específicamente el **`Logon Type 10`**, que señala conexiones remotas por RDP. Aquí confirmé que la intrusión se consolidó con un acceso exitoso para la cuenta **`Administrator`** el **20 de mayo de 2025** a las **09:51:48**.
+
+### 👾 Lista de Hallazgos
+```yaml
+Objetivo: Analizar la ráfaga de intentos fallidos y confirmar el acceso RDP exitoso.
+Fuente_de_Datos: Security.evtx (Windows Threat Detection)
+
+Analisis_de_Fuerza_Bruta:
+  Event_ID: 4625 (Inicio de sesión fallido)
+  Comportamiento: Ráfaga constante y automatizada (ataque de diccionario)
+  Cuenta_Objetivo: Administrator
+
+Consolidacion_de_Acceso:
+  Event_ID: 4624 (Inicio de sesión exitoso)
+  Fecha_Hora: "20/05/2025 - 09:51:48"
+  Tipo_de_Inicio: Logon Type 10 (Remote Interactive / RDP)
+  Cuenta_Comprometida: Administrator
+
+
+
+
+
 
 
 
