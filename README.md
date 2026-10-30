@@ -21,7 +21,7 @@
 
 ## 🟢 Introducción y Contexto del Laboratorio
 
-Como analista SOC, desarrollé este informe basándome en el entorno práctico del módulo *Windows Threat Detection 3* de TryHackMe. El objetivo de este caso de estudio es demostrar la capacidad de analizar un incidente cibernético completo. En lugar de reportar eventos aislados, correlacioné cada hallazgo técnico con las fases de la Cyber Kill Chain, documentando paso a paso cómo el atacante logró entrar, qué herramientas ejecutó y cómo aseguró su control sobre la máquina.
+Como analista SOC, desarrollé este informe basándome en el entorno práctico del módulo *Windows Threat Detection 3* de TryHackMe. El objetivo de este caso de estudio es demostrar la capacidad de analizar un incidente cibernético completo. En lugar de reportar eventos aislados, correlacioné cada hallazgo técnico con las fases de la Cyber Kill Chain, documentando paso a paso cómo el atacante logró entrar, qué herramientas ejecutó y cómo aseguró su control sobre la máquina. Además incluyo mitigaciones y un plan de acción defensiva.
 
 ---
 ## 🟢 Fase 1: Ataque de Fuerza Bruta y Acceso (Initial Access)
@@ -151,7 +151,7 @@ Tabla de referencias cruzadas con los artefactos técnicos y registros auditados
 | **C2 / Exfil** | Consultas DNS salientes hacia el dominio/IP del atacante | Sysmon 🔵 ID <font color="#00FF66"><b>22</b></font> |
 ---
 
-## 🟢 Fase 7: Remediación, Mitigación y Cierre Forense
+## 🟢 Fase 7: Mitigación y Cierre del caso
 
 ### Acciones de Erradicación Inmediata
 1. **Aislamiento de Red:** Desconectar inmediatamente la máquina afectada de la red corporativa para contener el tráfico de comunicación hacia la infraestructura C2 y prevenir un movimiento lateral.
@@ -168,122 +168,6 @@ Tabla de referencias cruzadas con los artefactos técnicos y registros auditados
 * **Monitoreo y Reglas de Alerta en SIEM:** Crear reglas de detección automatizadas para auditar en tiempo real la creación de nuevos servicios (<font color="#00FF66"><b>Event ID 4697</b></font>), tareas programadas (<font color="#00FF66"><b>Event ID 4698</b></font>) y adición de usuarios a grupos privileged (<font color="#00FF66"><b>Event ID 4732</b></font>).
 
 
-
-
-
-
-
-
-
-
-
-## 🔴 Fase 4: Persistencia Avanzada (Advanced Persistence)
-
-### 🧠 Análisis Técnico
-Entendiendo la psicología del atacante, una cuenta alternativa no es suficiente garantía: si el servidor se reinicia o el equipo de SOC detecta al usuario **`support`**, el atacante pierde el acceso. Por lo tanto, necesita mecanismos que ejecuten su malware de forma automática sin depender de que un usuario inicie sesión. Para rastrear estos invisibles, volví a auditar los registros del sistema.
-
-En primer lugar, busqué la creación de servicios maliciosos filtrando por el **`Event ID 4697`** (instalación de un servicio en el sistema). Detecté la instalación de un servicio con un nombre engañoso: **`Data Protection Service`**. Al examinar el campo de ruta, descubrí que apuntaba a la ejecución del binario **`nessus.exe`**.
-
-En segundo lugar, asumiendo que un atacante precavido establece capas de redundancia, investigué la creación de tareas programadas filtrando por el **`Event ID 4698`**. El hallazgo confirmó la redundancia: se creó la tarea programada **`Amazon Sync`**, cuya ruta de ejecución apuntaba al binario **`troy.exe`** alojado en **`C:\Program Files\Common Files\troy.exe`**.
-
-### 👾 Lista de Hallazgos
-```yaml
-Objetivo: Documentar mecanismos automáticos del malware resistentes a reinicios.
-Fuente_de_Datos: Security.evtx (Windows Threat Detection)
-
-Mecanismo_Primario_Servicio:
-  Event_ID: 4697 (A service was installed in the system)
-  Nombre_Servicio: Data Protection Service
-  Ruta_Ejecutable: nessus.exe
-
-Mecanismo_Redundante_Tarea:
-  Event_ID: 4698 (A scheduled task was created)
-  Nombre_Tarea: Amazon Sync
-  Ruta_Ejecutable: C:\Program Files\Common Files\troy.exe
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-INFORME OPCION 2 CUENTA UNA HISTORIA ORDEN CORRECTO
-## Fase 1: Acceso Inicial (Initial Access)
-
-En esta primera fase investigué cómo el atacante logró romper el perímetro de autenticación del servidor. Al revisar los registros de auditoría en `Security.evtx` (correspondientes a la telemetría de Windows Threat Detection 1), mi primer razonamiento fue buscar signos de un intento de intrusión por la fuerza. Para comprobar esta hipótesis, filtré por el **Event ID 4625** (inicio de sesión fallido).
-
-El resultado reveló una ráfaga masiva y constante de autenticaciones fallidas dirigidas contra la cuenta `Administrator`. La frecuencia de estos eventos (registrados segundo a segundo) confirmó de inmediato el uso de una herramienta automatizada ejecutando un ataque de diccionario.
-
-Sabiendo que un atacante no se detiene en los intentos fallidos, la duda lógica que surgió fue: *¿logró adivinar la credencial?* Para responder a esto, cambié el filtro al **Event ID 4624** (inicio de sesión exitoso). Al analizar los eventos posteriores a la ráfaga, confirmé que el 20 de mayo de 2025 a las 09:51:48 se consolidó la intrusión con un acceso exitoso a la cuenta `Administrator`. Al inspeccionar el detalle técnico, identifiqué un **Logon Type 10**, lo que demostró que el acceso se realizó de forma interactiva y remota a través de RDP. En la sección *Network Information* (campos *Source Network Address* y *Workstation Name*), registré la dirección IP y el nombre del equipo utilizado por el atacante para penetrar el sistema.
-
----
-
-## Fase 2: Persistencia Inicial y Elevación de Privilegios
-
-Una vez que el atacante estuvo dentro del sistema mediante RDP con la cuenta `Administrator`, su siguiente movimiento lógico era asegurar una vía de acceso secundaria. Como analista, sé que los atacantes prevén que la contraseña del administrador principal pueda ser cambiada o su sesión revocada. Por lo tanto, mi hipótesis fue que el atacante crearía una cuenta local de respaldo durante esa misma sesión interactiva.
-
-Para verificar esta sospecha, filtré en `Security.evtx` por el **Event ID 4720** (creación de un cuenta de usuario). La búsqueda confirmó la hipótesis: desde la sesión RDP activa de `Administrator` se creó la cuenta de usuario local `support`. 
-
-Sin embargo, una cuenta estándar no le serviría de mucho para controlar el servidor. El siguiente paso del atacante tenía que ser otorgarle privilegios totales. Para auditar este movimiento, filtré por el **Event ID 4732** (incorporación de un miembro a un grupo local de seguridad). Ahí descubrí que la cuenta `support` fue agregada inmediatamente al grupo `Administrators`. Con esto, el atacante dejó configurada una puerta trasera interactiva legítima en apariencia para reconectarse cuando lo deseara.
-
----
-
-## Fase 3: Entrega de Carga Útil (Payload Delivery)
-
-Con la persistencia de usuario garantizada, la investigación debía determinar qué herramientas o malware ingresó el atacante al servidor para comenzar a operar. Para este análisis de comportamiento en la máquina, correlacioné la línea de tiempo cambiando a la telemetría de `Sysmon` en el laboratorio Windows Threat Detection 3.
-
-Mi razonamiento analítico consistió en buscar la creación de archivos sospechosos en el sistema generados durante la ventana temporal de la sesión activa del atacante. Al filtrar por el **Event ID 11** de Sysmon (File Creation), identifiqué la descarga y creación del archivo `Urgent.inc.doc.Zone.Identifier`. 
-
-La estructura del nombre presentó de inmediato una anomalía: el uso de una doble extensión (`.inc.doc`), una técnica clásica de evasión para engañar al usuario o a los controles básicos del sistema. Esto confirmó que el atacante utilizó la sesión de administrador para descargar directamente su carga útil desde un servidor externo.
-
----
-
-## Fase 4: Persistencia Avanzada (Advanced Persistence)
-
-Entendiendo la psicología del atacante, una cuenta de usuario alternativa no es suficiente garantía: si el servidor se reinicia o el equipo de SOC detecta al usuario `support`, el atacante pierde el acceso. Por lo tanto, el atacante necesita mecanismos que ejecuten su malware de forma automática sin depender de que un usuario inicie sesión. Para rastrear estos mecanismos invisibles, volví a auditar los registros del sistema.
-
-En primer lugar, busqué la creación de servicios maliciosos filtrando por el **Event ID 4697** (instalación de un servicio en el sistema). Detecté la instalación de un servicio configurado con un nombre engañoso: `Data Protection Service`. Al examinar el campo *Service File Name*, descubrí que en realidad apuntaba a la ejecución del binario `nessus.exe`.
-
-En segundo lugar, asumiendo que un atacante precavido establece capas de redundancia por si el servicio es descubierto y eliminado, investigué la creación de tareas programadas filtrando por el **Event ID 4698**. El hallazgo confirmó la redundancia: se creó la tarea programada `Amazon Sync`, cuya ruta de ejecución apuntaba al binario `troy.exe` alojado en `C:\Program Files\Common Files\troy.exe`. Ambas configuraciones le garantizaban al atacante la reconexión automática tras cualquier reinicio del sistema.
-
----
-
-## Fase 5: Comando y Control (C2 - Command & Control)
-
-En la fase final del análisis, mi objetivo fue verificar si los mecanismos de persistencia creados funcionaron tras un reinicio del sistema y cómo el malware establecía comunicación con el exterior. Para evaluar la actividad a nivel de procesos y red, volví a consultar los registros de `Sysmon`.
-
-Para rastrear la ejecución del proceso, filtré por el **Event ID 1** de Sysmon (Process Creation) enfocado en el proceso padre `services.exe`. Verifiqué que, al arrancar el sistema operativo, `services.exe` levantó automáticamente el servicio falso `Data Protection Service`, iniciando el binario malicioso en segundo plano sin intervención humana.
-
-Finalmente, para comprobar la salida hacia internet y la infraestructura del atacante, filtré por el **Event ID 22** de Sysmon (DNS Query). En el campo *QueryName*, identifiqué las peticiones de resolución de nombres DNS realizadas por el ejecutable malicioso buscando la IP de su servidor C2. Con este hallazgo se confirmó la apertura de un canal de comunicación bidireccional saliente, completando la investigación del ciclo de vida del ataque.
 
 
 
