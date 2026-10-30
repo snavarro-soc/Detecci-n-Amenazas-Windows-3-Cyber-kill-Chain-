@@ -173,7 +173,19 @@ Tabla de referencias cruzadas con los artefactos técnicos y registros auditados
 
 
 
-
+### <font color="#FF5252">👾 Ficha Técnica</font>
+<font color="#81D4FA">
+* **Objetivo:** Identificar el vector de entrada y confirmar el compromiso del servidor.
+* **Fuente de datos:** <font color="#00FF66"><b>Security.evtx</b></font>.
+* **Análisis de Fuerza Bruta:**
+  * **Event ID:** <font color="#00FF66"><b>4625</b></font> (An Account Failed to Log On).
+  * **Comportamiento:** Ráfaga masiva y automatizada contra la cuenta <font color="#00FF66"><b>Administrator</b></font>.
+* **Consolidación de Acceso:**
+  * **Event ID:** <font color="#00FF66"><b>4624</b></font> (An Account Was Successfully Logged On).
+  * **Fecha y Hora:** 20/05/2025 a las 09:51:48.
+  * **Tipo de Inicio:** <font color="#00FF66"><b>Logon Type 10</b></font> (RDP).
+  * **Cuenta Compromedida:** <font color="#00FF66"><b>Administrator</b></font>.
+</font>
 
 
 
