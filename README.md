@@ -26,7 +26,7 @@ Como analista SOC, desarrollé este informe basándome en el entorno práctico d
 ---
 ## 🟢 Fase 1: Acceso Inicial (Initial Access)
 
-### Análisis Narrativo y Razonamiento
+### Análisis y Razonamiento
 En esta primera fase investigué cómo el atacante logró romper el perímetro de autenticación del servidor. Al revisar los registros de auditoría en <font color="#00FF66"><b>Security.evtx</b></font> (telemetría de **Windows Threat Detection 1**), mi primer razonamiento fue buscar signos de un intento de intrusión por la fuerza. Para corroborar esta hipótesis, filtré por el <font color="#00FF66"><b>Event ID 4625</b></font> (inicio de sesión fallido).
 
 El resultado reveló una ráfaga masiva y constante de autenticaciones fallidas dirigidas contra la cuenta <font color="#00FF66"><b>Administrator</b></font>. La frecuencia de estos eventos (registrados segundo a segundo) confirmó de inmediato el uso de una herramienta automatizada ejecutando un ataque de diccionario.
@@ -51,7 +51,7 @@ Sabiendo que un atacante no se detiene en los intentos fallidos, la duda lógica
 
 ## 🟢 Fase 2: Persistencia Inicial y Elevación de Privilegios
 
-### Análisis Narrativo y Razonamiento
+### Análisis y Razonamiento
 Una vez que el atacante estuvo dentro del sistema mediante **RDP** con la cuenta <font color="#00FF66"><b>Administrator</b></font>, su siguiente movimiento lógico era asegurar una vía de acceso secundaria. Como analista, sé que los atacantes prevén que la contraseña del administrador principal pueda ser cambiada o su sesión revocada. Por lo tanto, mi hipótesis fue que el atacante crearía una cuenta local de respaldo durante esa misma sesión interactiva.
 
 Para verificar esta sospecha, filtré en <font color="#00FF66"><b>Security.evtx</b></font> por el <font color="#00FF66"><b>Event ID 4720</b></font> (creación de cuenta de usuario). La búsqueda confirmó la hipótesis: desde la sesión RDP activa de <font color="#00FF66"><b>Administrator</b></font> se creó la cuenta de usuario local <font color="#00FF66"><b>support</b></font>. 
@@ -74,7 +74,7 @@ Sin embargo, una cuenta estándar no le serviría de mucho para controlar el ser
 
 ## 🟢 Fase 3: Entrega de Carga Útil (Payload Delivery)
 
-### Análisis Narrativo y Razonamiento
+### Análisis y Razonamiento
 Con la persistencia de usuario garantizada, la investigación debía determinar qué herramientas o malware ingresó el atacante al servidor para comenzar a operar. Para este análisis de comportamiento en la máquina, correlacioné la línea de tiempo cambiando a la telemetría de <font color="#00FF66"><b>Sysmon</b></font> en el laboratorio **Windows Threat Detection 3**.
 
 Mi razonamiento analítico consistió en buscar la creación de archivos sospechosos en el sistema generados durante la ventana temporal de la sesión activa del atacante. Al filtrar por el <font color="#00FF66"><b>Event ID 11</b></font> de Sysmon (File Creation), identifiqué la descarga y creación del archivo <font color="#00FF66"><b>Urgent.inc.doc.Zone.Identifier</b></font>. 
@@ -94,7 +94,7 @@ La estructura del nombre presentó de inmediato una anomalía: el uso de una dob
 
 ## 🟢 Fase 4: Persistencia Avanzada (Advanced Persistence)
 
-### Análisis Narrativo y Razonamiento
+### Análisis y Razonamiento
 Entendiendo la psicología del atacante, una cuenta de usuario alternativa no es suficiente garantía: si el servidor se reinicia o el equipo de SOC detecta al usuario <font color="#00FF66"><b>support</b></font>, el atacante pierde el acceso. Por lo tanto, el atacante necesita mecanismos que ejecuten su malware de forma automática sin depender de que un usuario inicie sesión. Para rastrear estos mecanismos invisibles, volví a auditar los registros del sistema en <font color="#00FF66"><b>Security.evtx</b></font>.
 
 En primer lugar, busqué la creación de servicios maliciosos filtrando por el <font color="#00FF66"><b>Event ID 4697</b></font> (instalación de un servicio en el sistema). Detecté la instalación de un servicio configurado con un nombre engañoso: <font color="#00FF66"><b>Data Protection Service</b></font>. Al examinar el campo *Service File Name*, descubrí que en realidad apuntaba a la ejecución del binario <font color="#00FF66"><b>nessus.exe</b></font>.
@@ -120,7 +120,93 @@ En segundo lugar, asumiendo que un atacante precavido establece capas de redunda
 ### Análisis Narrativo y Razonamiento
 En esta fase del análisis, mi objetivo fue verificar si los mecanismos de persistencia creados funcionaron tras un reinicio del sistema y cómo el malware establecía comunicación con el exterior. Para evaluar la actividad a nivel de procesos y red, volví a consultar los registros de <font color="#00FF66"><b>Sysmon</b></font>.
 
-Para rastrear la ejecución del proceso, filtré por el <font color="#00FF66"><b>Event ID 1</b></font> de
+Para rastrear la ejecución del proceso, filtré por el <font color="#00FF66"><b>Event ID 1</b></font> de Sysmon (Process Creation) enfocado en el proceso padre <font color="#00FF66"><b>services.exe</b></font>. Verifiqué que, al arrancar el sistema operativo, <font color="#00FF66"><b>services.exe</b></font> levantó automáticamente el servicio falso <font color="#00FF66"><b>Data Protection Service</b></font>, iniciando el binario malicioso en segundo plano sin intervención humana.
+
+Finalmente, para comprobar la salida hacia internet y la infraestructura del atacante, filtré por el <font color="#00FF66"><b>Event ID 22</b></font> de Sysmon (DNS Query). En el campo *QueryName*, identifiqué las peticiones de resolución de nombres DNS realizadas por el ejecutable malicioso buscando la IP de su servidor C2. Con este hallazgo se confirmó la apertura de un canal de comunicación bidireccional saliente, completando la investigación técnica de la secuencia del ataque.
+
+### Ficha Técnica de Hallazgos
+* **Objetivo:** Confirmar la activación automática del malware post-reinicio y la generación de tráfico C2.
+* **Fuente de datos:** Registros de <font color="#00FF66"><b>Sysmon</b></font> (Windows Threat Detection 3).
+* **Ejecución de Proceso:**
+  * **Event ID (Sysmon):** <font color="#00FF66"><b>1</b></font> (Process Creation).
+  * **Proceso Padre (*ParentImage*):** <font color="#00FF66"><b>services.exe</b></font>.
+  * **Comportamiento:** Activación automática del binario malicioso por parte de <font color="#00FF66"><b>services.exe</b></font> mediante el servicio <font color="#00FF66"><b>Data Protection Service</b></font>.
+* **Canal de Comunicación C2:**
+  * **Event ID (Sysmon):** <font color="#00FF66"><b>22</b></font> (DNSEvent - DNS query).
+  * **Campo Clave (*QueryName*):** Petición de resolución DNS generada por el proceso persistente hacia la infraestructura externa del atacante.
+
+---
+
+## 🔵 Fase 6: Resumen de Indicadores de Compromiso (IOCs)
+
+### Consolidados de la Investigación Forense
+Para facilitar las tareas de monitoreo, bloqueo y cacería de amenazas (Threat Hunting) por parte del equipo de respuesta a incidentes, se consolidan todos los Indicadores de Compromiso (IOCs) extraídos durante el análisis:
+
+* **Archivos y Cargas Útiles Maliciosas:**
+  * <font color="#00FF66"><b>Urgent.inc.doc.Zone.Identifier</b></font> (Payload inicial con técnica de doble extensión).
+  * <font color="#00FF66"><b>nessus.exe</b></font> (Binario malicioso enmascarado como herramienta de escaneo y vinculado al servicio falso).
+  * <font color="#00FF66"><b>C:\Program Files\Common Files\troy.exe</b></font> (Binario persistente vinculado a la tarea programada redundante).
+
+* **Cuentas de Usuario y Credenciales:**
+  * <font color="#00FF66"><b>Administrator</b></font> (Cuenta legítima comprometida mediante ataque de fuerza bruta RDP).
+  * <font color="#00FF66"><b>support</b></font> (Cuenta de usuario ilegítima creada por el atacante e integrada al grupo <font color="#00FF66"><b>Administrators</b></font>).
+
+* **Artefactos de Persistencia en Sistema:**
+  * Servicio del Sistema: <font color="#00FF66"><b>Data Protection Service</b></font>.
+  * Tarea Programada: <font color="#00FF66"><b>Amazon Sync</b></font>.
+
+* **Red y Comunicaciones C2:**
+  * Registros de peticiones DNS salientes vinculadas al <font color="#00FF66"><b>Event ID 22</b></font> de Sysmon asociadas a la infraestructura C2 del atacante.
+  * Conexiones entrantes mediante <font color="#00FF66"><b>Logon Type 10</b></font> desde dirección IP remota de origen registrada en el <font color="#00FF66"><b>Event ID 4624</b></font>.
+
+---
+
+## 🟢 Fase 7: Remediación, Mitigación y Cierre Forense
+
+### Acciones de Erradicación Inmediata
+1. **Aislamiento de Red:** Desconectar inmediatamente la máquina afectada de la red corporativa para contener el tráfico de comunicación hacia la infraestructura C2 y prevenir un movimiento lateral.
+2. **Depuración de Cuentas:** 
+   * Forzar el restablecimiento inmediato de credenciales para la cuenta <font color="#00FF66"><b>Administrator</b></font> e implementar complejidad estricta.
+   * Eliminar de forma definitiva la cuenta local no autorizada <font color="#00FF66"><b>support</b></font> y revocar sus privilegios administrativos.
+3. **Eliminación de Artefactos Maliciosos:**
+   * Detener y desinstalar el servicio falso <font color="#00FF66"><b>Data Protection Service</b></font> y purgar el ejecutable <font color="#00FF66"><b>nessus.exe</b></font>.
+   * Eliminar la tarea programada <font color="#00FF66"><b>Amazon Sync</b></font> y remover el binario <font color="#00FF66"><b>C:\Program Files\Common Files\troy.exe</b></font> del disco de forma segura.
+
+### Recomendaciones de Mitigación y Fortalecimiento (Hardening)
+* **Protección del Perímetro RDP:** Deshabilitar la exposición directa del puerto 3389 (RDP) a Internet. Implementar una solución de VPN corporativa con Autenticación de Doble Factor (MFA) obligatoria para todo acceso remoto.
+* **Políticas de Bloqueo de Cuentas:** Configurar políticas de bloqueo (*Account Lockout Policy*) en Windows para inhabilitar automáticamente cuentas de usuario tras 3 a 5 intentos fallidos consecutivos de inicio de sesión, neutralizando ataques de diccionario automatizados.
+* **Monitoreo y Reglas de Alerta en SIEM:** Crear reglas de detección automatizadas para auditar en tiempo real la creación de nuevos servicios (<font color="#00FF66"><b>Event ID 4697</b></font>), tareas programadas (<font color="#00FF66"><b>Event ID 4698</b></font>) y adición de usuarios a grupos privileged (<font color="#00FF66"><b>Event ID 4732</b></font>).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 INFORME OPCION 2 CUENTA UNA HISTORIA ORDEN CORRECTO
 ## Fase 1: Acceso Inicial (Initial Access)
