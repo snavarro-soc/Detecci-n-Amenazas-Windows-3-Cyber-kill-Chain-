@@ -173,6 +173,21 @@ Tabla de referencias cruzadas con los artefactos técnicos y registros auditados
 
 
 
+
+
+
+
+
+
+## 🔴 Fase 1: Acceso Inicial (Initial Access)
+
+### <font color="#00E5FF">🧠 Razonamiento</font>
+En esta primera fase investigué cómo el atacante logró romper el perímetro de autenticación del servidor. Al revisar los registros de auditoría en <font color="#00FF66"><b>Security.evtx</b></font> (telemetría de Windows Threat Detection 1), mi primer razonamiento fue buscar signos de un intento de intrusión por la fuerza. Para corroborar esta hipótesis, filtré por el <font color="#00FF66"><b>Event ID 4625</b></font> (inicio de sesión fallido).
+
+El resultado reveló una ráfaga masiva y constante de autenticaciones fallidas dirigidas contra la cuenta <font color="#00FF66"><b>Administrator</b></font>. La frecuencia de estos eventos (registrados segundo a segundo) confirmó de inmediato el uso de una herramienta automatizada ejecutando un ataque de diccionario.
+
+Sabiendo que un atacante no se detiene en los intentos fallidos, la duda lógica que surgió fue: *¿logró adivinar la credencial?* Para responder a esto, cambié el filtro al <font color="#00FF66"><b>Event ID 4624</b></font> (inicio de sesión exitoso). Al analizar los eventos posteriores a la ráfaga, confirmé que el 20 de mayo de 2025 a las 09:51:48 se consolidó la intrusión con un acceso exitoso a la cuenta <font color="#00FF66"><b>Administrator</b></font>. Al inspeccionar el detalle técnico, identifiqué un <font color="#00FF66"><b>Logon Type 10</b></font>, lo que demostró que el acceso se realizó de forma interactiva y remota a través de RDP. En la sección *Network Information* (campos *Source Network Address* y *Workstation Name*), registré la dirección IP y el nombre del equipo utilizado por el atacante para penetrar el sistema.
+
 ### <font color="#FF5252">👾 Ficha Técnica</font>
 <font color="#81D4FA">
 * **Objetivo:** Identificar el vector de entrada y confirmar el compromiso del servidor.
@@ -186,6 +201,163 @@ Tabla de referencias cruzadas con los artefactos técnicos y registros auditados
   * **Tipo de Inicio:** <font color="#00FF66"><b>Logon Type 10</b></font> (RDP).
   * **Cuenta Compromedida:** <font color="#00FF66"><b>Administrator</b></font>.
 </font>
+
+---
+
+## 🔴 Fase 2: Persistencia Inicial y Elevación de Privilegios
+
+### <font color="#00E5FF">🧠 Razonamiento</font>
+Una vez que el atacante estuvo dentro del sistema mediante RDP con la cuenta <font color="#00FF66"><b>Administrator</b></font>, su siguiente movimiento lógico era asegurar una vía de acceso secundaria. Como analista, sé que los atacantes prevén que la contraseña del administrador principal pueda ser cambiada o su sesión revocada. Por lo tanto, mi hipótesis fue que el atacante crearía una cuenta local de respaldo durante esa misma sesión interactiva.
+
+Para verificar esta sospecha, filtré en <font color="#00FF66"><b>Security.evtx</b></font> por el <font color="#00FF66"><b>Event ID 4720</b></font> (creación de cuenta de usuario). La búsqueda confirmó la hipótesis: desde la sesión RDP activa de <font color="#00FF66"><b>Administrator</b></font> se creó la cuenta de usuario local <font color="#00FF66"><b>support</b></font>. 
+
+Sin embargo, una cuenta estándar no le serviría de mucho para controlar el servidor. El siguiente paso del atacante tenía que ser otorgarle privilegios totales. Para auditar este movimiento, filtré por el <font color="#00FF66"><b>Event ID 4732</b></font> (incorporación de un miembro a un grupo local de seguridad). Ahí descubrí que la cuenta <font color="#00FF66"><b>support</b></font> fue agregada inmediatamente al grupo <font color="#00FF66"><b>Administrators</b></font>. Con esto, el atacante dejó configurada una puerta trasera interactiva legítima en apariencia para reconectarse cuando lo deseara.
+
+### <font color="#FF5252">👾 Ficha Técnica</font>
+<font color="#81D4FA">
+* **Objetivo:** Rastrear la creación de cuentas locales de respaldo.
+* **Fuente de datos:** <font color="#00FF66"><b>Security.evtx</b></font>.
+* **Creación de Cuenta Local:**
+  * **Event ID:** <font color="#00FF66"><b>4720</b></font> (A user account was created).
+  * **Cuenta Creada:** <font color="#00FF66"><b>support</b></font>.
+* **Elevación de Privilegios:**
+  * **Event ID:** <font color="#00FF66"><b>4732</b></font> (A member was added to a security-enabled local group).
+  * **Grupo Destino:** <font color="#00FF66"><b>Administrators</b></font>.
+  * **Impacto:** Privilegios administrativos completos a la nueva cuenta <font color="#00FF66"><b>support</b></font>.
+</font>
+
+---
+
+## 🔴 Fase 3: Entrega de Carga Útil (Payload Delivery)
+
+### <font color="#00E5FF">🧠 Razonamiento</font>
+Con la persistencia de usuario garantizada, la investigación debía determinar qué herramientas o malware ingresó el atacante al servidor para comenzar a operar. Para este análisis de comportamiento en la máquina, correlacioné la línea de tiempo cambiando a la telemetría de <font color="#00FF66"><b>Sysmon</b></font> en el laboratorio Windows Threat Detection 3.
+
+Mi razonamiento analítico consistió en buscar la creación de archivos sospechosos en el sistema generados durante la ventana temporal de la sesión activa del atacante. Al filtrar por el <font color="#00FF66"><b>Event ID 11</b></font> de Sysmon (File Creation), identifiqué la descarga y creación del archivo <font color="#00FF66"><b>Urgent.inc.doc.Zone.Identifier</b></font>. 
+
+La estructura del nombre presentó de inmediato una anomalía: el uso de una doble extensión (<font color="#00FF66"><b>.inc.doc</b></font>), una técnica clásica de evasión para engañar al usuario o a los controles básicos del sistema. Esto confirmó que el atacante utilizó la sesión de administrador para descargar directamente su carga útil desde un servidor externo.
+
+### <font color="#FF5252">👾 Ficha Técnica</font>
+<font color="#81D4FA">
+* **Objetivo:** Identificar la descarga e inoculación del ejecutable malicioso.
+* **Fuente de datos:** <font color="#00FF66"><b>Sysmon</b></font>.
+* **Detección de Archivo Malicioso:**
+  * **Event ID:** <font color="#00FF66"><b>11</b></font> (FileCreate / File Creation).
+  * **Nombre de Archivo:** <font color="#00FF66"><b>Urgent.inc.doc.Zone.Identifier</b></font>.
+  * **Mecanismo (IoC):** Evasión por doble extensión (<font color="#00FF66"><b>.inc.doc</b></font>) descargada desde servidor externo.
+</font>
+
+---
+
+## 🔴 Fase 4: Persistencia Avanzada (Advanced Persistence)
+
+### <font color="#00E5FF">🧠 Razonamiento</font>
+Entendiendo la psicología del atacante, una cuenta de usuario alternativa no es suficiente garantía: si el servidor se reinicia o el equipo de SOC detecta al usuario <font color="#00FF66"><b>support</b></font>, el atacante pierde el acceso. Por lo tanto, el atacante necesita mecanismos que ejecuten su malware de forma automática sin depender de que un usuario inicie sesión. Para rastrear estos mecanismos invisibles, volví a auditar los registros del sistema en <font color="#00FF66"><b>Security.evtx</b></font>.
+
+En primer lugar, busqué la creación de servicios maliciosos filtrando por el <font color="#00FF66"><b>Event ID 4697</b></font> (instalación de un servicio en el sistema). Detecté la instalación de un servicio configurado con un nombre engañoso: <font color="#00FF66"><b>Data Protection Service</b></font>. Al examinar el campo *Service File Name*, descubrí que en realidad apuntaba a la ejecución del binario <font color="#00FF66"><b>nessus.exe</b></font>.
+
+En segundo lugar, asumiendo que un atacante precavido establece capas de redundancia por si el servicio es descubierto y eliminado, investigué la creación de tareas programadas filtrando por el <font color="#00FF66"><b>Event ID 4698</b></font>. El hallazgo confirmó la redundancia: se creó la tarea programada <font color="#00FF66"><b>Amazon Sync</b></font>, cuya ruta de ejecución apuntaba al binario <font color="#00FF66"><b>troy.exe</b></font> alojado en <font color="#00FF66"><b>C:\Program Files\Common Files\troy.exe</b></font>. Ambas configuraciones le garantizaban al atacante la reconexión automática tras cualquier reinicio del sistema.
+
+### <font color="#FF5252">👾 Ficha Técnica</font>
+<font color="#81D4FA">
+* **Objetivo:** Documentar mecanismos automáticos resistentes a reinicios.
+* **Fuente de datos:** <font color="#00FF66"><b>Security.evtx</b></font>.
+* **Mecanismo Primario (Servicio Malicioso):**
+  * **Event ID:** <font color="#00FF66"><b>4697</b></font> (A service was installed in the system).
+  * **Nombre del Servicio:** <font color="#00FF66"><b>Data Protection Service</b></font>.
+  * **Ruta del Ejecutable:** <font color="#00FF66"><b>nessus.exe</b></font>.
+* **Mecanismo Redundante (Tarea Programada):**
+  * **Event ID:** <font color="#00FF66"><b>4698</b></font> (A scheduled task was created).
+  * **Nombre de la Tarea:** <font color="#00FF66"><b>Amazon Sync</b></font>.
+  * **Ruta del Ejecutable:** <font color="#00FF66"><b>C:\Program Files\Common Files\troy.exe</b></font>.
+</font>
+
+---
+
+## 🔵 Fase 5: Comando y Control (C2 - Command & Control)
+
+### <font color="#00E5FF">🧠 Razonamiento</font>
+En esta fase del análisis, mi objetivo fue verificar si los mecanismos de persistencia creados funcionaron tras un reinicio del sistema y cómo el malware establecía comunicación con el exterior. Para evaluar la actividad a nivel de procesos y red, volví a consultar los registros de <font color="#00FF66"><b>Sysmon</b></font>.
+
+Para rastrear la ejecución del proceso, filtré por el <font color="#00FF66"><b>Event ID 1</b></font> de Sysmon (Process Creation) enfocado en el proceso padre <font color="#00FF66"><b>services.exe</b></font>. Verifiqué que, al arrancar el sistema operativo, <font color="#00FF66"><b>services.exe</b></font> levantó automáticamente el servicio falso <font color="#00FF66"><b>Data Protection Service</b></font>, iniciando el binario malicioso en segundo plano sin intervención humana.
+
+Finalmente, para comprobar la salida hacia internet y la infraestructura del atacante, filtré por el <font color="#00FF66"><b>Event ID 22</b></font> de Sysmon (DNS Query). En el campo *QueryName*, identifiqué las peticiones de resolución de nombres DNS realizadas por el ejecutable malicioso buscando la IP de su servidor C2. Con este hallazgo se confirmó la apertura de un canal de comunicación bidireccional saliente, completando la investigación técnica de la secuencia del ataque.
+
+### <font color="#FF5252">👾 Ficha Técnica</font>
+<font color="#81D4FA">
+* **Objetivo:** Confirmar la activación automática del malware y generación de tráfico C2.
+* **Fuente de datos:** <font color="#00FF66"><b>Sysmon</b></font>.
+* **Ejecución de Proceso:**
+  * **Event ID:** <font color="#00FF66"><b>1</b></font> (Process Creation).
+  * **Proceso Padre:** <font color="#00FF66"><b>services.exe</b></font>.
+* **Canal de Comunicación C2:**
+  * **Event ID:** <font color="#00FF66"><b>22</b></font> (DNSEvent - DNS query).
+  * **Comportamiento:** Petición de resolución DNS generada hacia la infraestructura externa del atacante.
+</font>
+
+---
+
+## 🔵 Fase 6: Resumen de Indicadores de Compromiso (IoCs)
+
+Tabla de referencias cruzadas con los artefactos técnicos y registros auditados a lo largo del caso:
+
+| Fase Kill Chain | Artefacto / Indicador Técnico (IoC) | Origen y Event ID |
+| :--- | :--- | :--- |
+| **Initial Access** | Ráfaga de fuerza bruta y acceso RDP exitoso (Tipo 10) a <font color="#00FF66"><b>Administrator</b></font> | Security.evtx 🔵 ID <font color="#00FF66"><b>4625 / 4624</b></font> |
+| **Persistence** | Creación cuenta <font color="#00FF66"><b>support</b></font> y asignación a <font color="#00FF66"><b>Administrators</b></font> | Security.evtx 🔵 ID <font color="#00FF66"><b>4720 / 4732</b></font> |
+| **Delivery** | Creación de archivo con rastros de descarga ( <font color="#00FF66"><b>Urgent.inc.doc.Zone.Identifier</b></font> ) | Sysmon 🔵 ID <font color="#00FF66"><b>11</b></font> |
+| **Persistence** | Servicio falso <font color="#00FF66"><b>Data Protection Service</b></font> apuntando a <font color="#00FF66"><b>nessus.exe</b></font> | Security.evtx 🔵 ID <font color="#00FF66"><b>4697</b></font> |
+| **Persistence** | Tarea programada maliciosa camuflada como <font color="#00FF66"><b>Amazon Sync</b></font> ( <font color="#00FF66"><b>troy.exe</b></font> ) | Security.evtx 🔵 ID <font color="#00FF66"><b>4698</b></font> |
+| **Execution** | Proceso hijo malicioso lanzado desde el servicio padre ( <font color="#00FF66"><b>services.exe</b></font> ) | Sysmon 🔵 ID <font color="#00FF66"><b>1</b></font> |
+| **C2 / Exfil** | Consultas DNS salientes hacia el dominio/IP del atacante | Sysmon 🔵 ID <font color="#00FF66"><b>22</b></font> |
+
+---
+
+## 🟢 Fase 7: Remediación y Cierre Forense
+
+### <font color="#FF5252">⚙️ Acciones de Erradicación Inmediata</font>
+<font color="#81D4FA">
+1. **Aislamiento de Red:** Desconectar inmediatamente la máquina afectada de la red corporativa.
+2. **Depuración de Cuentas:** 
+   * Restablecer credenciales de <font color="#00FF66"><b>Administrator</b></font>.
+   * Eliminar la cuenta local no autorizada <font color="#00FF66"><b>support</b></font>.
+3. **Eliminación de Artefactos:**
+   * Desinstalar el servicio <font color="#00FF66"><b>Data Protection Service</b></font> y purgar <font color="#00FF66"><b>nessus.exe</b></font>.
+   * Eliminar la tarea <font color="#00FF66"><b>Amazon Sync</b></font> y el binario <font color="#00FF66"><b>C:\Program Files\Common Files\troy.exe</b></font>.
+</font>
+
+### <font color="#00E5FF">🛡️ Recomendaciones de Mitigación (Hardening)</font>
+<font color="#81D4FA">
+* **Protección RDP:** Deshabilitar puerto 3389 directo a Internet; exigir VPN con Autenticación de Doble Factor (MFA).
+* **Bloqueo de Cuentas:** Configurar *Account Lockout Policy* tras 3 a 5 intentos fallidos consecutivos.
+* **Reglas SIEM:** Crear alertas en tiempo real para creación de servicios (<font color="#00FF66"><b>ID 4697</b></font>), tareas programadas (<font color="#00FF66"><b>ID 4698</b></font>) y elevación de grupos (<font color="#00FF66"><b>ID 4732</b></font>).
+</font>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
